@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>রেজিস্ট্রেশন — TextilePOS</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  body{font-family:'Noto Sans Bengali',system-ui,sans-serif}
+  .step{animation:slideIn .3s ease}
+  @keyframes slideIn{from{opacity:0;transform:translateX(15px)}to{opacity:1;transform:none}}
+  @keyframes fade{from{opacity:0;transform:scale(.95)}to{opacity:1;transform:none}}
+</style>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-green-600 via-blue-700 to-indigo-800 flex items-start justify-center p-4 pt-8">
+
+<div class="w-full max-w-md">
+  <!-- Card -->
+  <div id="wizardCard" class="bg-white rounded-3xl shadow-2xl p-7">
+    <div class="text-center mb-6">
+      <div class="text-5xl mb-2">🧵</div>
+      <h1 class="text-xl font-extrabold">নতুন দোকান খুলুন</h1>
+      <p class="text-gray-500 text-xs mt-1">মাত্র ৩ ধাপে সম্পন্ন করুন</p>
+    </div>
+
+    <!-- Progress -->
+    <div class="flex items-center gap-2 mb-6">
+      <div class="step-dot flex-1 h-1.5 rounded-full bg-gray-200 transition-all"></div>
+      <div class="step-dot flex-1 h-1.5 rounded-full bg-gray-200 transition-all"></div>
+      <div class="step-dot flex-1 h-1.5 rounded-full bg-gray-200 transition-all"></div>
+    </div>
+
+    <!-- ═══════ STEP 1 ═══════ -->
+    <div id="step1" class="step">
+      <h2 class="text-lg font-bold mb-1">দোকানের তথ্য</h2>
+      <p class="text-xs text-gray-500 mb-4">আপনার দোকান সম্পর্কে জানুন</p>
+
+      <label class="block text-xs font-bold text-gray-600 mb-1">দোকানের নাম *</label>
+      <input id="inpShopName" placeholder="যেমন: রহিম টেক্সটাইল" autocomplete="off"
+        class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none mb-3">
+
+      <label class="block text-xs font-bold text-gray-600 mb-1">মালিকের নাম *</label>
+      <input id="inpOwnerName" placeholder="যেমন: মোঃ রহিম উদ্দিন" autocomplete="off"
+        class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none mb-4">
+
+      <button id="btnToStep2" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-3.5 rounded-xl font-bold shadow-lg transition active:scale-[.98]">
+        পরবর্তী →
+      </button>
+    </div>
+
+    <!-- ═══════ STEP 2 ═══════ -->
+    <div id="step2" class="step hidden">
+      <h2 class="text-lg font-bold mb-1">আপনার শপ আইডি</h2>
+      <p class="text-xs text-gray-500 mb-3">এই আইডি ও মোবাইল দিয়ে লগইন করবেন</p>
+
+      <div class="bg-blue-50 border-2 border-dashed border-blue-300 rounded-2xl p-4 text-center mb-3">
+        <div class="text-[10px] text-blue-700 font-bold mb-1">জেনারেট করা শপ আইডি</div>
+        <div id="outShopId" class="text-2xl font-extrabold text-blue-700 tracking-wider font-mono select-all">—</div>
+        <button id="btnCopyId" class="mt-2 text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg font-semibold">📋 কপি</button>
+      </div>
+
+      <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-2 text-[11px] text-yellow-800 mb-3">
+        ⚠️ এই আইডি সংরক্ষণ করুন। হারালে লগইন করতে পারবেন না।
+      </div>
+
+      <label class="block text-xs font-bold text-gray-600 mb-1">মোবাইল নাম্বার *</label>
+      <input id="inpPhone" type="tel" inputmode="numeric" placeholder="01XXXXXXXXX" autocomplete="off"
+        class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none mb-4">
+      <p class="text-[10px] text-gray-400 -mt-3 mb-4">এই নাম্বার দিয়েও লগইন করা যাবে</p>
+
+      <div class="flex gap-2">
+        <button id="btnBackStep1" class="flex-1 bg-gray-100 py-3.5 rounded-xl font-bold">← পিছনে</button>
+        <button id="btnToStep3" class="flex-[2] bg-blue-600 text-white py-3.5 rounded-xl font-bold shadow-lg active:scale-[.98]">
+          পরবর্তী →
+        </button>
+      </div>
+    </div>
+
+    <!-- ═══════ STEP 3 ═══════ -->
+    <div id="step3" class="step hidden">
+      <h2 class="text-lg font-bold mb-1">পাসওয়ার্ড সেট করুন</h2>
+      <p class="text-xs text-gray-500 mb-4">নিরাপদ পাসওয়ার্ড দিন (কমপক্ষে ৬ অক্ষর)</p>
+
+      <label class="block text-xs font-bold text-gray-600 mb-1">পাসওয়ার্ড *</label>
+      <input id="inpPass1" type="password" minlength="6" autocomplete="new-password"
+        class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none mb-3">
+
+      <label class="block text-xs font-bold text-gray-600 mb-1">পাসওয়ার্ড আবার *</label>
+      <input id="inpPass2" type="password" minlength="6" autocomplete="new-password"
+        class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none mb-4">
+
+      <div class="flex gap-2">
+        <button id="btnBackStep2" class="flex-1 bg-gray-100 py-3.5 rounded-xl font-bold">← পিছনে</button>
+        <button id="btnFinish" class="flex-[2] bg-green-600 text-white py-3.5 rounded-xl font-bold shadow-lg active:scale-[.98] disabled:opacity-60">
+          ✓ রেজিস্ট্রেশন শেষ করুন
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="text-center mt-4">
+    <a href="login.html" class="text-white/90 text-sm hover:underline">← লগইন পেজে ফিরে যান</a>
+  </div>
+</div>
+
+<!-- Success Modal -->
+<div id="successModal" class="hidden fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-3xl w-full max-w-md p-7 text-center" style="animation:fade .3s ease">
+    <div class="text-6xl mb-3">🎉</div>
+    <h2 class="text-2xl font-extrabold text-green-600">সফল!</h2>
+    <p class="text-gray-500 text-sm mt-1 mb-5">আপনার দোকান তৈরি হয়েছে</p>
+
+    <div class="bg-blue-50 border-2 border-dashed border-blue-300 rounded-2xl p-4 mb-4">
+      <div class="text-[10px] text-blue-700 font-bold mb-1">শপ আইডি</div>
+      <div id="successShopId" class="text-2xl font-extrabold text-blue-700 tracking-wider font-mono mb-3"></div>
+      <div class="text-[10px] text-gray-600">মোবাইল নাম্বার</div>
+      <div id="successPhone" class="font-bold"></div>
+    </div>
+
+    <div class="bg-yellow-50 border border-yellow-200 rounded-xl p-3 text-left text-xs text-yellow-800 mb-5">
+      ⚠️ Shop ID ও মোবাইল নাম্বার সংরক্ষণ করুন। লগইনে লাগবে।
+    </div>
+
+    <button id="btnGoLogin" class="w-full bg-blue-600 text-white py-3.5 rounded-xl font-bold">
+      লগইন পেজে যান →
+    </button>
+  </div>
+</div>
+
+<script src="firebase-config.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="common.js"></script>
+<script>
+/* ============================================================
+   REGISTER WIZARD
+   ============================================================ */
+const R = {
+  shopName: '', ownerName: '', shopId: '', phone: '',
+};
+
+const $step1 = document.getElementById('step1');
+const $step2 = document.getElementById('step2');
+const $step3 = document.getElementById('step3');
+const $dots = document.querySelectorAll('.step-dot');
+
+function showStep(n) {
+  [$step1, $step2, $step3].forEach((el, i) => {
+    el.classList.toggle('hidden', i + 1 !== n);
+    if (i + 1 === n) el.classList.add('step');
+  });
+  $dots.forEach((dot, i) => {
+    dot.style.background = (i + 1) <= n ? '#2563eb' : '#e5e7eb';
+  });
+  if (n === 2 && !R.shopId) {
+    R.shopId = TP.generateShopId();
+    document.getElementById('outShopId').textContent = R.shopId;
+  }
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+/* STEP 1 → 2 */
+document.getElementById('btnToStep2').addEventListener('click', () => {
+  const shopName  = document.getElementById('inpShopName').value.trim();
+  const ownerName = document.getElementById('inpOwnerName').value.trim();
+  if (!shopName)  { TP.toast('দোকানের নাম দিন', 'error'); return; }
+  if (!ownerName) { TP.toast('মালিকের নাম দিন', 'error'); return; }
+  R.shopName  = shopName;
+  R.ownerName = ownerName;
+  showStep(2);
+});
+
+/* STEP 2 → 1 */
+document.getElementById('btnBackStep1').addEventListener('click', () => showStep(1));
+
+/* Copy shop id */
+document.getElementById('btnCopyId').addEventListener('click', async () => {
+  await TP.copyText(R.shopId);
+  TP.toast('শপ আইডি কপি হয়েছে', 'success');
+});
+
+/* STEP 2 → 3 */
+document.getElementById('btnToStep3').addEventListener('click', () => {
+  const phone = TP.normalizePhone(document.getElementById('inpPhone').value);
+  if (!TP.isValidPhone(phone)) {
+    TP.toast('সঠিক মোবাইল নাম্বার দিন (01XXXXXXXXX)', 'error');
+    return;
+  }
+  R.phone = phone;
+  showStep(3);
+});
+
+/* STEP 3 → 2 */
+document.getElementById('btnBackStep2').addEventListener('click', () => showStep(2));
+
+/* FINISH */
+document.getElementById('btnFinish').addEventListener('click', async () => {
+  const p1 = document.getElementById('inpPass1').value;
+  const p2 = document.getElementById('inpPass2').value;
+  if (p1.length < 6) { TP.toast('পাসওয়ার্ড কমপক্ষে ৬ অক্ষর', 'error'); return; }
+  if (p1 !== p2)     { TP.toast('পাসওয়ার্ড মিলছে না', 'error'); return; }
+
+  const btn = document.getElementById('btnFinish');
+  btn.disabled = true;
+  btn.textContent = 'তৈরি হচ্ছে...';
+
+  try {
+    // Check phone already used
+    const phoneSnap = await TP.db.collection('phoneIndex').doc(R.phone).get();
+    if (phoneSnap.exists) {
+      throw new Error('এই মোবাইল নাম্বার দিয়ে আগেই দোকান খোলা হয়েছে');
+    }
+
+    // Check shop ID collision (rare)
+    const shopSnap = await TP.db.collection('shops').doc(R.shopId).get();
+    if (shopSnap.exists) {
+      R.shopId = TP.generateShopId();
+      document.getElementById('outShopId').textContent = R.shopId;
+      throw new Error('শপ আইডি সংঘর্ষ — আবার চেষ্টা করুন');
+    }
+
+    // Create Firebase Auth user (this signs in automatically)
+    const email = TP.adminEmail(R.shopId);
+    const cred = await TP.auth.createUserWithEmailAndPassword(email, p1);
+    const adminUid = cred.user.uid;
+
+    // Write shop doc
+    await TP.db.collection('shops').doc(R.shopId).set({
+      shopId: R.shopId,
+      shopName: R.shopName,
+      ownerName: R.ownerName,
+      phone: R.phone,
+      adminUid,
+      settings: { shopName: R.shopName, shopAddress: '', shopPhone: R.phone },
+      createdAt: TP.FV.serverTimestamp(),
+    });
+
+    // Write user doc
+    await TP.db.collection('users').doc(adminUid).set({
+      shopId: R.shopId,
+      username: 'admin',
+      name: R.ownerName,
+      role: 'admin',
+      mustChangePassword: false,
+      createdAt: TP.FV.serverTimestamp(),
+    });
+
+    // Write phone index
+    await TP.db.collection('phoneIndex').doc(R.phone).set({
+      shopId: R.shopId,
+      createdAt: TP.FV.serverTimestamp(),
+    });
+
+    // Success!
+    document.getElementById('successShopId').textContent = R.shopId;
+    document.getElementById('successPhone').textContent = TP.bn(R.phone);
+    document.getElementById('successModal').classList.remove('hidden');
+
+  } catch (err) {
+    console.error(err);
+    let msg = err.message || 'রেজিস্ট্রেশন ব্যর্থ';
+    if (err.code === 'auth/email-already-in-use') msg = 'শপ আইডি ব্যবহৃত — আবার চেষ্টা করুন';
+    if (err.code === 'auth/weak-password')       msg = 'পাসওয়ার্ড দুর্বল';
+    if (err.code === 'auth/network-request-failed') msg = 'ইন্টারনেট নেই';
+    TP.toast(msg, 'error');
+    btn.disabled = false;
+    btn.textContent = '✓ রেজিস্ট্রেশন শেষ করুন';
+  }
+});
+
+/* Go to login */
+document.getElementById('btnGoLogin').addEventListener('click', () => {
+  location.href = 'login.html';
+});
+
+/* If already logged in → redirect */
+TP.auth.onAuthStateChanged(async user => {
+  if (!user) return;
+  // Skip if we are in registration flow (success modal visible)
+  if (!document.getElementById('successModal').classList.contains('hidden')) return;
+  try {
+    const doc = await TP.db.collection('users').doc(user.uid).get();
+    if (doc.exists) {
+      location.href = doc.data().role === 'admin' ? 'admin.html' : 'salesman.html';
+    }
+  } catch {}
+});
+</script>
+</body>
+</html>
