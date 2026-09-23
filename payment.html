@@ -1,25 +1,27 @@
 <!DOCTYPE html>
-<html lang="bn">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <title>Payment Device — TextilePOS</title>
 <script src="https://cdn.tailwindcss.com"></script>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-  *{ -webkit-tap-highlight-color:transparent; }
-  body{ font-family:'Noto Sans Bengali',system-ui,sans-serif; }
-  .hide{display:none !important}
-  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
-  .pulse{animation:pulse 1.5s infinite}
-  @keyframes pop{from{transform:scale(.9);opacity:0}to{transform:scale(1);opacity:1}}
-  .pop{animation:pop .25s ease}
+  *{ -webkit-tap-highlight-color:transparent; box-sizing:border-box; }
+  body{ font-family:'Inter',system-ui,sans-serif; margin:0; }
+  .hide{ display:none !important; }
+  @keyframes pulse{ 0%,100%{opacity:1} 50%{opacity:.35} }
+  .pulse{ animation:pulse 1.5s infinite; }
+  @keyframes pop{ from{transform:scale(.9);opacity:0} to{transform:scale(1);opacity:1} }
+  .pop{ animation:pop .25s ease; }
   @keyframes ringPulse{
-    0%{box-shadow:0 0 0 0 rgba(37,99,235,.6)}
-    70%{box-shadow:0 0 0 20px rgba(37,99,235,0)}
-    100%{box-shadow:0 0 0 0 rgba(37,99,235,0)}
+    0%{ box-shadow:0 0 0 0 rgba(37,99,235,.55) }
+    70%{ box-shadow:0 0 0 18px rgba(37,99,235,0) }
+    100%{ box-shadow:0 0 0 0 rgba(37,99,235,0) }
   }
-  .ring-pulse{animation:ringPulse 1.8s infinite}
+  .ring-pulse{ animation:ringPulse 1.8s infinite; }
+  @keyframes spin{ from{transform:rotate(0)} to{transform:rotate(360deg)} }
+  .spin{ animation:spin 1.2s linear infinite; display:inline-block; }
 </style>
 </head>
 <body class="bg-gray-900 text-white min-h-screen">
@@ -27,28 +29,29 @@
 <!-- ═══════════ LOADING ═══════════ -->
 <div id="loadingView" class="fixed inset-0 flex items-center justify-center z-[999] bg-gray-900">
   <div class="text-center">
-    <div class="text-6xl mb-3">💳</div>
-    <div class="text-lg font-bold">কানেক্ট হচ্ছে...</div>
-    <div class="text-xs text-gray-400 mt-2">Payment ডিভাইস সেটআপ হচ্ছে</div>
+    <div class="text-6xl mb-4">💳</div>
+    <div class="text-lg font-bold">Connecting...</div>
+    <div class="text-xs text-gray-400 mt-2">Setting up payment device</div>
   </div>
 </div>
 
 <!-- ═══════════ ERROR ═══════════ -->
 <div id="errorView" class="hide fixed inset-0 flex items-center justify-center p-4 z-[999] bg-gray-900">
   <div class="text-center max-w-sm">
-    <div class="text-6xl mb-3">⚠️</div>
-    <h1 id="errTitle" class="text-xl font-extrabold text-red-500 mb-2">সেশন পাওয়া যায়নি</h1>
+    <div class="text-6xl mb-4">⚠️</div>
+    <h1 id="errTitle" class="text-xl font-extrabold text-red-500 mb-3">Session Not Found</h1>
     <p id="errMsg" class="text-gray-400 text-sm leading-relaxed"></p>
-    <p class="text-gray-500 text-xs mt-6">Admin/Salesman এর Settings থেকে নতুন QR তৈরি করে স্ক্যান করুন।</p>
+    <p class="text-gray-500 text-xs mt-6">Generate a new QR from Admin/Salesman Settings and scan it again.</p>
   </div>
 </div>
 
-<!-- ═══════════ ENDED ═══════════ -->
+<!-- ═══════════ SESSION ENDED ═══════════ -->
 <div id="endedView" class="hide fixed inset-0 flex items-center justify-center p-4 z-[999] bg-gray-900">
   <div class="text-center max-w-sm">
-    <div class="text-6xl mb-3">✅</div>
-    <h1 class="text-xl font-extrabold text-green-500 mb-2">সেশন শেষ</h1>
-    <p class="text-gray-400 text-sm">Admin/Salesman payment ডিভাইস ডিসকানেক্ট করেছেন।</p>
+    <div class="text-6xl mb-4">✅</div>
+    <h1 class="text-xl font-extrabold text-green-500 mb-3">Session Ended</h1>
+    <p class="text-gray-400 text-sm">The Admin/Salesman has disconnected this payment device.</p>
+    <p class="text-gray-500 text-xs mt-6">To reconnect, scan a new QR from their Settings.</p>
   </div>
 </div>
 
@@ -60,11 +63,11 @@
       <div class="flex-1 min-w-0">
         <div class="font-bold text-lg truncate" id="idleShopName">—</div>
         <div class="text-[11px] opacity-90">
-          <span id="idleSalesmanName">—</span> • Payment Device
+          <span id="idleSalesmanName">—</span> · Payment Device
         </div>
       </div>
       <div class="bg-white/20 px-2.5 py-1 rounded-lg text-[10px] font-bold">
-        <span class="inline-block w-2 h-2 rounded-full bg-green-300 mr-1 pulse"></span>লাইভ
+        <span class="inline-block w-2 h-2 rounded-full bg-green-300 mr-1 pulse"></span>LIVE
       </div>
     </div>
   </header>
@@ -72,13 +75,13 @@
   <div class="flex-1 flex items-center justify-center p-6 text-center">
     <div>
       <div class="text-7xl mb-4">💳</div>
-      <div class="text-2xl font-extrabold mb-2">Payment ডিভাইস প্রস্তুত</div>
+      <div class="text-2xl font-extrabold mb-2">Payment Device Ready</div>
       <div class="text-gray-400 text-sm leading-relaxed max-w-xs mx-auto">
-        কাস্টমার বা সেলসম্যান POS এ UPI select করে payment দিলে এখানে স্বয়ংক্রিয়ভাবে QR দেখাবে
+        When the Salesman/Admin creates a UPI payment request, the QR will appear here automatically.
       </div>
       <div class="mt-8 inline-flex items-center gap-2 bg-gray-800 px-4 py-2 rounded-full text-xs text-gray-400">
         <span class="inline-block w-2 h-2 rounded-full bg-green-400 pulse"></span>
-        অপেক্ষায়...
+        Waiting for payment request...
       </div>
     </div>
   </div>
@@ -92,16 +95,16 @@
 <div id="payView" class="hide min-h-screen flex flex-col">
   <header class="bg-gradient-to-r from-blue-600 to-purple-700 p-3 text-center">
     <div class="text-xs opacity-90" id="payShopName">—</div>
-    <div class="text-[10px] opacity-75">🔔 নতুন পেমেন্ট রিকোয়েস্ট</div>
+    <div class="text-[10px] opacity-75">🔔 New Payment Request</div>
   </header>
 
   <div class="flex-1 flex flex-col items-center justify-center p-4 text-center">
-    <div class="text-sm text-gray-400 mb-2">পরিশোধ করতে হবে</div>
-    <div id="payAmount" class="text-5xl font-extrabold text-white mb-1 pop">৳০</div>
+    <div class="text-sm text-gray-400 mb-2">Amount to Pay</div>
+    <div id="payAmount" class="text-5xl font-extrabold text-white mb-1 pop">₹0</div>
     <div id="payInvoice" class="text-xs text-gray-500 font-mono mb-4"></div>
 
     <div class="bg-white p-4 rounded-2xl shadow-2xl mb-4 ring-pulse">
-      <img id="payQR" class="block w-[260px] h-[260px]">
+      <img id="payQR" class="block w-[260px] h-[260px]" alt="UPI QR">
     </div>
 
     <div class="bg-gray-800 rounded-xl p-3 max-w-sm w-full mb-3">
@@ -109,20 +112,18 @@
       <div id="payUPI" class="font-mono font-bold text-sm text-white break-all"></div>
     </div>
 
-    <div class="flex justify-center gap-3 text-[11px] text-gray-400 mb-4">
+    <div class="flex justify-center gap-3 text-[11px] text-gray-400 mb-5">
       <span>✅ GPay</span><span>✅ PhonePe</span><span>✅ Paytm</span><span>✅ BHIM</span>
     </div>
 
-    <div class="flex gap-2 max-w-sm w-full">
-      <button id="payConfirm" class="flex-1 bg-green-600 hover:bg-green-700 py-4 rounded-xl font-bold text-base shadow-lg active:scale-[.98] transition">
-        ✓ পেমেন্ট পেয়েছি
-      </button>
-      <button id="payCancel" class="bg-red-500/20 text-red-400 px-4 py-4 rounded-xl font-bold active:scale-95 transition">
-        ✕
-      </button>
-    </div>
-    <div class="text-[10px] text-gray-500 mt-3 max-w-xs">
-      কাস্টমার পেমেন্ট সম্পন্ন করার পর ✓ চাপুন
+    <div class="bg-blue-500/15 border border-blue-400/40 rounded-xl p-3 max-w-sm w-full">
+      <div class="flex items-center justify-center gap-2 text-blue-300 font-semibold text-sm mb-1">
+        <span class="spin">⏳</span>
+        <span>Waiting for confirmation...</span>
+      </div>
+      <div class="text-[11px] text-gray-400">
+        Salesman will confirm the payment from their POS
+      </div>
     </div>
   </div>
 </div>
@@ -131,12 +132,25 @@
 <div id="successView" class="hide min-h-screen flex items-center justify-center p-4">
   <div class="text-center max-w-sm">
     <div class="text-8xl mb-4 pop">✅</div>
-    <div class="text-3xl font-extrabold text-green-500 mb-2">পেমেন্ট সম্পন্ন!</div>
-    <div id="successAmount" class="text-2xl font-bold text-white mb-4">৳০</div>
-    <div class="text-gray-400 text-sm">Salesman এর POS-এ কনফার্ম হয়েছে</div>
+    <div class="text-3xl font-extrabold text-green-500 mb-2">Payment Successful!</div>
+    <div id="successAmount" class="text-2xl font-bold text-white mb-4">₹0</div>
+    <div class="text-gray-400 text-sm">Confirmed by Salesman's POS</div>
     <div class="mt-6 inline-flex items-center gap-2 bg-gray-800 px-4 py-2 rounded-full text-xs text-gray-400">
       <span class="inline-block w-2 h-2 rounded-full bg-green-400 pulse"></span>
-      পরবর্তী পেমেন্টের অপেক্ষায়...
+      Waiting for next payment...
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ CANCELLED VIEW ═══════════ -->
+<div id="cancelledView" class="hide min-h-screen flex items-center justify-center p-4">
+  <div class="text-center max-w-sm">
+    <div class="text-8xl mb-4">❌</div>
+    <div class="text-3xl font-extrabold text-red-500 mb-2">Payment Cancelled</div>
+    <div class="text-gray-400 text-sm">The salesman cancelled this payment request</div>
+    <div class="mt-6 inline-flex items-center gap-2 bg-gray-800 px-4 py-2 rounded-full text-xs text-gray-400">
+      <span class="inline-block w-2 h-2 rounded-full bg-yellow-400 pulse"></span>
+      Returning to idle...
     </div>
   </div>
 </div>
@@ -151,7 +165,7 @@
 /* ═══════════════════════════════════════════════
    PAYMENT DEVICE
    Wrapped in IIFE to avoid variable collisions
-   with common.js ($, bn, esc etc.)
+   with common.js ($, bn, esc, money etc.)
    ═══════════════════════════════════════════════ */
 (function() {
   'use strict';
@@ -163,12 +177,14 @@
     sessionUnsub: null,
     requestsUnsub: null,
     activeReqRef: null,
+    activeReqUnsub: null,
     pingTimer: null,
     audioCtx: null,
   };
 
   const q = s => document.querySelector(s);
 
+  /* ── Beep using Web Audio ── */
   function beep(freq = 900, dur = 120) {
     try {
       if (!P.audioCtx) P.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -185,8 +201,9 @@
     } catch (e) { /* ignore */ }
   }
 
+  /* ── View management ── */
   function showView(id) {
-    ['loadingView','errorView','endedView','idleView','payView','successView'].forEach(v => {
+    ['loadingView','errorView','endedView','idleView','payView','successView','cancelledView'].forEach(v => {
       const el = document.getElementById(v);
       if (el) el.classList.toggle('hide', v !== id);
     });
@@ -199,7 +216,7 @@
     showView('errorView');
   }
 
-  /* ── INIT ── */
+  /* ═══════════ INIT ═══════════ */
   (async function init() {
     const params = new URLSearchParams(location.search);
     P.sessionId = params.get('s');
@@ -209,15 +226,15 @@
 
     if (!P.sessionId) {
       return showError(
-        'সেশন আইডি নেই',
-        'URL এ ?s=... parameter নেই। Admin/Salesman Settings থেকে QR তৈরি করে স্ক্যান করুন।'
+        'Missing Session ID',
+        'No ?s=... parameter in URL. Please scan the QR from Admin/Salesman Settings.'
       );
     }
 
     if (typeof TP === 'undefined' || !TP.db) {
       return showError(
-        'Firebase লোড হয়নি',
-        'common.js বা Firebase SDK লোড করতে ব্যর্থ। ইন্টারনেট চেক করে refresh করুন।'
+        'Firebase Not Loaded',
+        'Failed to load common.js or Firebase SDK. Check your internet connection and refresh.'
       );
     }
 
@@ -227,15 +244,15 @@
 
       if (!doc.exists) {
         return showError(
-          'সেশন খুঁজে পাওয়া যায়নি',
-          'সম্ভবত সেশন মেয়াদ শেষ হয়েছে বা Admin/Salesman ডিসকানেক্ট করেছেন। নতুন QR তৈরি করে স্ক্যান করুন।'
+          'Session Not Found',
+          'This session may have expired or been disconnected. Generate a new QR and scan again.'
         );
       }
 
       P.session = doc.data();
       P.shopId = P.session.shopId;
 
-      // Update connected status
+      // Mark device as connected
       try {
         await ref.update({
           deviceConnected: true,
@@ -245,8 +262,9 @@
         console.warn('[payment.html] update failed:', e);
       }
 
-      q('#idleShopName').textContent = P.session.shopName || 'দোকান';
-      q('#idleSalesmanName').textContent = P.session.salesmanName || 'অ্যাডমিন';
+      // Fill idle view
+      q('#idleShopName').textContent = P.session.shopName || 'Shop';
+      q('#idleSalesmanName').textContent = P.session.salesmanName || 'Admin';
       q('#idleUPI').textContent = P.session.upiId || '—';
 
       showView('idleView');
@@ -279,21 +297,23 @@
       console.error('[payment.html] INIT ERROR:', e);
       const msg = String(e.message || e).substring(0, 180);
       showError(
-        'কানেকশন সমস্যা',
-        msg + ' | Firestore Rules এ paymentSessions allow আছে কিনা চেক করুন।'
+        'Connection Error',
+        msg + ' | Check Firestore Rules allow paymentSessions access.'
       );
     }
   })();
 
+  /* ═══════════ SHOW PAYMENT REQUEST ═══════════ */
   async function showPaymentRequest(reqRef, data) {
     P.activeReqRef = reqRef;
     const amount = +data.amount || 0;
 
-    q('#payShopName').textContent = P.session.shopName || 'দোকান';
+    q('#payShopName').textContent = P.session.shopName || 'Shop';
     q('#payAmount').textContent = TP.money(amount);
     q('#payInvoice').textContent = data.invoiceNo || '';
     q('#payUPI').textContent = P.session.upiId || '';
 
+    // Generate UPI QR
     try {
       const upiURL = TP.buildUPIURL({
         upiId: P.session.upiId,
@@ -308,69 +328,54 @@
       q('#payQR').src = '';
     }
 
+    // Alert
     beep(750, 100);
     try { navigator.vibrate && navigator.vibrate([80, 60, 80]); } catch (e) {}
 
     showView('payView');
+
+    // ⭐ Watch request status — POS decides paid/cancelled
+    if (P.activeReqUnsub) { try { P.activeReqUnsub(); } catch(e){} }
+    P.activeReqUnsub = reqRef.onSnapshot(snap => {
+      if (!snap.exists) return;
+      const d = snap.data();
+
+      if (d.status === 'paid') {
+        q('#successAmount').textContent = TP.money(d.amount || amount);
+        beep(1100, 150);
+        try { navigator.vibrate && navigator.vibrate(150); } catch (e) {}
+        showView('successView');
+
+        if (P.activeReqUnsub) { try { P.activeReqUnsub(); } catch(e){} P.activeReqUnsub = null; }
+        P.activeReqRef = null;
+
+        setTimeout(() => {
+          if (!document.getElementById('successView').classList.contains('hide')) {
+            showView('idleView');
+          }
+        }, 2800);
+
+      } else if (d.status === 'cancelled') {
+        beep(400, 200);
+        showView('cancelledView');
+
+        if (P.activeReqUnsub) { try { P.activeReqUnsub(); } catch(e){} P.activeReqUnsub = null; }
+        P.activeReqRef = null;
+
+        setTimeout(() => {
+          if (!document.getElementById('cancelledView').classList.contains('hide')) {
+            showView('idleView');
+          }
+        }, 1800);
+      }
+    }, err => console.error('[payment.html] req watch:', err));
   }
 
-  /* ── CONFIRM ── */
-  document.getElementById('payConfirm').addEventListener('click', async () => {
-    if (!P.activeReqRef) return;
-    const btn = document.getElementById('payConfirm');
-    btn.disabled = true;
-    btn.textContent = 'কনফার্ম হচ্ছে...';
-
-    try {
-      const snap = await P.activeReqRef.get();
-      if (!snap.exists) {
-        P.activeReqRef = null;
-        showView('idleView');
-        return;
-      }
-      const amount = +snap.data().amount || 0;
-
-      await P.activeReqRef.update({
-        status: 'paid',
-        confirmedAt: TP.FV.serverTimestamp(),
-      });
-
-      q('#successAmount').textContent = TP.money(amount);
-      beep(1100, 150);
-      try { navigator.vibrate && navigator.vibrate(150); } catch (e) {}
-
-      showView('successView');
-      P.activeReqRef = null;
-
-      setTimeout(() => {
-        if (!document.getElementById('successView').classList.contains('hide')) showView('idleView');
-        btn.disabled = false;
-        btn.textContent = '✓ পেমেন্ট পেয়েছি';
-      }, 2500);
-    } catch (e) {
-      console.error('[payment.html] confirm error:', e);
-      btn.disabled = false;
-      btn.textContent = '✓ পেমেন্ট পেয়েছি';
-    }
-  });
-
-  /* ── CANCEL ── */
-  document.getElementById('payCancel').addEventListener('click', async () => {
-    if (!P.activeReqRef) return;
-    if (!confirm('পেমেন্ট বাতিল করবেন?')) return;
-    try {
-      await P.activeReqRef.update({
-        status: 'cancelled',
-        cancelledAt: TP.FV.serverTimestamp(),
-      });
-    } catch (e) { console.error(e); }
-    P.activeReqRef = null;
-    showView('idleView');
-  });
-
+  /* ═══════════ CLEANUP ═══════════ */
   function cleanup() {
     if (P.sessionUnsub) { try { P.sessionUnsub(); } catch (e) {} P.sessionUnsub = null; }
     if (P.requestsUnsub) { try { P.requestsUnsub(); } catch (e) {} P.requestsUnsub = null; }
+    if (P.activeReqUnsub) { try { P.activeReqUnsub(); } catch (e) {} P.activeReqUnsub = null; }
     if (P.pingTimer) { clearInterval(P.pingTimer); P.pingTimer = null; }
   }
 
