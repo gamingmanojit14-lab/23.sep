@@ -1,14 +1,16 @@
-   /* ============================================================
+/* ============================================================
    TextilePOS — Common Utilities
    + Barcode + QR Code (embedded) + Camera Scanner
    + Remote Scanner Session
    + Remote Payment Device Session
+   + Payment Request Flow (POS-controlled)
+   All user-facing text in English.
    ============================================================ */
 
 if (!window.FIREBASE_CONFIG || window.FIREBASE_CONFIG.apiKey === 'PASTE_YOUR_API_KEY_HERE') {
   document.body.innerHTML = `<div style="padding:40px;font-family:sans-serif;max-width:600px;margin:auto;line-height:1.8">
-    <h1 style="color:#dc2626">⚠️ Firebase Config সেট করা হয়নি</h1>
-    <p><b>firebase-config.js</b> ফাইলটি খুলে <b>FIREBASE_CONFIG</b> object এর মানগুলো পেস্ট করুন।</p>
+    <h1 style="color:#dc2626">⚠️ Firebase Config Missing</h1>
+    <p>Open <b>firebase-config.js</b> and paste your Firebase project credentials into the <b>FIREBASE_CONFIG</b> object.</p>
   </div>`;
   throw new Error('Firebase config missing');
 }
@@ -19,9 +21,8 @@ const db = firebase.firestore();
 const FV = firebase.firestore.FieldValue;
 
 /* ============================================================
-   ═══════════ EMBEDDED QR CODE GENERATOR ═══════════
+   EMBEDDED QR CODE GENERATOR
    Based on qrcode-generator by Kazuhiko Arase (MIT License)
-   https://github.com/kazuhikoarase/qrcode-generator
    ============================================================ */
 (function(global){
   var QRMath = (function(){
@@ -467,22 +468,37 @@ const FV = firebase.firestore.FieldValue;
     return _this;
   };
 })(window);
-/* ═══════════ END EMBEDDED QR GENERATOR ═══════════ */
+/* END EMBEDDED QR GENERATOR */
 
-/* ── Utilities ── */
+/* ============================================================
+   UTILITIES
+   ============================================================ */
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+
+// Legacy Bengali digits converter (kept for backward compat)
 const BN = '০১২৩৪৫৬৭৮৯';
 const bn = n => String(n ?? '').replace(/[0-9]/g, d => BN[+d]);
-const money = n => { n = Number(n) || 0; return '৳' + bn(Number.isInteger(n) ? String(n) : n.toFixed(2)); };
+
+// Money formatting — English digits, Indian Rupee
+const money = n => {
+  n = Number(n) || 0;
+  const s = Number.isInteger(n) ? String(n) : n.toFixed(2);
+  return '₹' + s;
+};
+
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const todayKey = (d = new Date()) => `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
 const fmtDate = iso => {
   if (!iso) return '';
   const d = iso.toDate ? iso.toDate() : new Date(iso);
-  return bn(String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear()+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'));
+  return String(d.getDate()).padStart(2,'0') + '/' + String(d.getMonth()+1).padStart(2,'0') + '/' + d.getFullYear() + ' ' + String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
 };
-const isToday = iso => { if (!iso) return false; const d = iso.toDate ? iso.toDate() : new Date(iso); return todayKey(d) === todayKey(); };
+const isToday = iso => {
+  if (!iso) return false;
+  const d = iso.toDate ? iso.toDate() : new Date(iso);
+  return todayKey(d) === todayKey();
+};
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 const copyText = t => {
   if (navigator.clipboard) return navigator.clipboard.writeText(t);
@@ -501,12 +517,12 @@ function generateBarcode() {
   return yy + mm + dd + rand;
 }
 
-/* ═══════════════════════════════════════════════
+/* ============================================================
    QR DATA URL (uses embedded qrcode)
-   ═══════════════════════════════════════════════ */
+   ============================================================ */
 async function generateQRDataURL(text, size = 500) {
   if (typeof window.qrcode === 'undefined') {
-    throw new Error('QR library লোড হয়নি');
+    throw new Error('QR library not loaded');
   }
   const qr = window.qrcode(0, 'M');
   qr.addData(String(text));
@@ -550,12 +566,12 @@ async function showQRModal(text, title, filename) {
   if (old) old.remove();
   const modal = document.createElement('div');
   modal.id = '_tpQRModal';
-  modal.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;font-family:'Noto Sans Bengali',sans-serif`;
+  modal.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;font-family:system-ui,sans-serif`;
   modal.innerHTML = `
     <div style="background:#fff;border-radius:22px;max-width:420px;width:100%;padding:24px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.4)">
       <h3 style="font-weight:800;font-size:18px;margin:0 0 4px">${esc(title)}</h3>
-      <p style="color:#6b7280;font-size:12px;margin:0 0 16px">স্ক্যান করুন বা ডাউনলোড করুন</p>
-      <div id="_qrLoading" style="padding:40px;color:#6b7280">QR তৈরি হচ্ছে...</div>
+      <p style="color:#6b7280;font-size:12px;margin:0 0 16px">Scan or download</p>
+      <div id="_qrLoading" style="padding:40px;color:#6b7280">Generating QR...</div>
       <div id="_qrWrap" style="display:none">
         <div style="background:#fff;padding:12px;border-radius:14px;display:inline-block;box-shadow:0 2px 14px rgba(0,0,0,.1);border:1px solid #e5e7eb">
           <img id="_qrImg" style="width:260px;height:260px;display:block">
@@ -563,8 +579,8 @@ async function showQRModal(text, title, filename) {
         <div style="margin-top:10px;font-size:11px;color:#9ca3af;font-family:monospace;word-break:break-all;line-height:1.5">${esc(text)}</div>
       </div>
       <div style="margin-top:16px;display:flex;gap:8px">
-        <button id="_qrDownload" style="flex:1;background:#2563eb;color:#fff;padding:13px;border:none;border-radius:12px;font-weight:700;font-family:inherit;font-size:14px;cursor:pointer">📥 ডাউনলোড PNG</button>
-        <button id="_qrClose" style="flex:1;background:#f3f4f6;color:#374151;padding:13px;border:none;border-radius:12px;font-weight:700;font-family:inherit;font-size:14px;cursor:pointer">বন্ধ</button>
+        <button id="_qrDownload" style="flex:1;background:#2563eb;color:#fff;padding:13px;border:none;border-radius:12px;font-weight:700;font-family:inherit;font-size:14px;cursor:pointer">Download PNG</button>
+        <button id="_qrClose" style="flex:1;background:#f3f4f6;color:#374151;padding:13px;border:none;border-radius:12px;font-weight:700;font-family:inherit;font-size:14px;cursor:pointer">Close</button>
       </div>
     </div>`;
   document.body.appendChild(modal);
@@ -577,21 +593,21 @@ async function showQRModal(text, title, filename) {
     document.getElementById('_qrDownload').onclick = () => downloadDataURL(dataURL, filename || 'qr.png');
   } catch (err) {
     console.error(err);
-    document.getElementById('_qrLoading').innerHTML = '⚠️ QR তৈরি হয়নি<br><span style="font-size:11px">' + esc(err.message) + '</span>';
+    document.getElementById('_qrLoading').innerHTML = '⚠️ QR generation failed<br><span style="font-size:11px">' + esc(err.message) + '</span>';
   }
 
   document.getElementById('_qrClose').onclick = () => modal.remove();
   modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
 }
 
-/* ═══════════════════════════════════════════════
+/* ============================================================
    CAMERA QR SCANNER (Html5Qrcode)
-   ═══════════════════════════════════════════════ */
+   ============================================================ */
 let _activeScanner = null;
 function openQRScanner(onScan) {
   if (_activeScanner) return;
   if (typeof Html5Qrcode === 'undefined') {
-    toast('QR স্ক্যানার লোড হয়নি — ইন্টারনেট চেক করুন', 'error');
+    toast('QR scanner library not loaded. Check your internet.', 'error');
     return;
   }
 
@@ -600,18 +616,18 @@ function openQRScanner(onScan) {
 
   const modal = document.createElement('div');
   modal.id = '_tpQRScan';
-  modal.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,.95);z-index:9999;display:flex;flex-direction:column;font-family:'Noto Sans Bengali',sans-serif`;
+  modal.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,.95);z-index:9999;display:flex;flex-direction:column;font-family:system-ui,sans-serif`;
   modal.innerHTML = `
     <div style="padding:14px;display:flex;align-items:center;gap:10px;color:#fff">
-      <div style="flex:1;font-weight:800;font-size:16px">📷 QR কোড স্ক্যান করুন</div>
+      <div style="flex:1;font-weight:800;font-size:16px">📷 Scan QR Code</div>
       <button id="_qrScanClose" style="background:#dc2626;color:#fff;border:none;width:42px;height:42px;border-radius:12px;font-size:22px;font-weight:800;cursor:pointer;line-height:1">×</button>
     </div>
     <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:16px">
       <div id="qrReader" style="width:100%;max-width:440px;background:#111;border-radius:18px;overflow:hidden;border:2px solid #22c55e"></div>
     </div>
     <div style="padding:16px;text-align:center;color:#e5e7eb;font-size:13px;line-height:1.6">
-      📱 QR কোড ফ্রেমের ভিতরে ধরুন<br>
-      <span style="font-size:11px;color:#9ca3af">স্ক্যান হলে স্বয়ংক্রিয়ভাবে বন্ধ হবে</span>
+      📱 Point camera at QR code<br>
+      <span style="font-size:11px;color:#9ca3af">Auto-closes on scan</span>
     </div>`;
   document.body.appendChild(modal);
 
@@ -638,7 +654,7 @@ function openQRScanner(onScan) {
     console.error('Scanner error:', err);
     _activeScanner = null;
     modal.remove();
-    toast('ক্যামেরা চালু করা যায়নি — পারমিশন দিন', 'error');
+    toast('Camera could not start. Please grant permission.', 'error');
   });
 
   document.getElementById('_qrScanClose').onclick = () => {
@@ -648,11 +664,14 @@ function openQRScanner(onScan) {
   };
 }
 
-/* ── Email ── */
+/* ============================================================
+   VALIDATION
+   ============================================================ */
 function normalizeEmail(raw) { return String(raw || '').trim().toLowerCase(); }
-function isValidGmail(email) { return /^[a-z0-9][a-z0-9._%+-]{2,}@gmail\.com$/i.test(String(email || '').trim()); }
+function isValidGmail(email) {
+  return /^[a-z0-9][a-z0-9._%+-]{2,}@gmail\.com$/i.test(String(email || '').trim());
+}
 
-/* ── Phone ── */
 function normalizePhone(raw) {
   let p = String(raw || '').replace(/\D/g, '');
   if (p.startsWith('880') && p.length === 13) p = '0' + p.slice(3);
@@ -668,7 +687,9 @@ function isValidPhone(p) {
   return false;
 }
 
-/* ── Shop ID ── */
+/* ============================================================
+   SHOP ID
+   ============================================================ */
 function generateShopId() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let s = '';
@@ -678,9 +699,9 @@ function generateShopId() {
 const shopIdKey = id => String(id || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 const salesmanEmail = (sid, u) => `s-${shopIdKey(sid)}-${String(u||'').toLowerCase().replace(/[^a-z0-9]/g,'')}@textilepos-user.app`;
 
-/* ═══════════════════════════════════════════════
+/* ============================================================
    SCANNER SESSION — Remote scanner pairing
-   ═══════════════════════════════════════════════ */
+   ============================================================ */
 function generateSessionId() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   const arr = new Uint8Array(24);
@@ -727,9 +748,9 @@ async function deleteScannerSession(sessionId) {
   } catch (e) { console.error('deleteScannerSession:', e); }
 }
 
-/* ═══════════════════════════════════════════════
+/* ============================================================
    PAYMENT SESSION — Remote payment device
-   ═══════════════════════════════════════════════ */
+   ============================================================ */
 async function createPaymentSession(shopId, salesmanId, salesmanName, shopName, upiId, upiName) {
   const sessionId = generateSessionId();
   await db.collection('paymentSessions').doc(sessionId).set({
@@ -765,11 +786,14 @@ async function deletePaymentSession(sessionId) {
   } catch (e) { console.error('deletePaymentSession:', e); }
 }
 
+/* ============================================================
+   PAYMENT REQUEST FLOW (POS-controlled)
+   ============================================================ */
+
 /**
- * Push a UPI payment request to the remote payment device.
- * Resolves with 'paid' | 'cancelled' | 'timeout'.
+ * POS creates a payment request. Returns the Firestore ref.
  */
-async function requestRemotePayment(sessionId, { amount, invoiceNo, customerName }) {
+async function createPaymentRequest(sessionId, { amount, invoiceNo, customerName }) {
   const reqRef = db.collection('paymentSessions').doc(sessionId).collection('requests').doc();
   await reqRef.set({
     amount: Number(amount) || 0,
@@ -778,26 +802,35 @@ async function requestRemotePayment(sessionId, { amount, invoiceNo, customerName
     status: 'pending',
     createdAt: FV.serverTimestamp(),
   });
+  return reqRef;
+}
 
-  return new Promise((resolve) => {
-    let done = false;
-    const finish = (val) => { if (done) return; done = true; try { unsub(); } catch {} resolve(val); };
-    const unsub = reqRef.onSnapshot(snap => {
-      if (!snap.exists) return;
-      const d = snap.data();
-      if (d.status === 'paid') finish('paid');
-      else if (d.status === 'cancelled') finish('cancelled');
-    });
-    setTimeout(() => finish('timeout'), 5 * 60 * 1000);
+/**
+ * POS marks the request as paid.
+ */
+async function confirmPaymentRequest(reqRef) {
+  await reqRef.update({
+    status: 'paid',
+    confirmedAt: FV.serverTimestamp(),
   });
 }
 
-/* ═══════════════════════════════════════════════
-   UPI PAYMENT HELPERS
-   ═══════════════════════════════════════════════ */
+/**
+ * POS marks the request as cancelled.
+ */
+async function cancelPaymentRequest(reqRef) {
+  await reqRef.update({
+    status: 'cancelled',
+    cancelledAt: FV.serverTimestamp(),
+  });
+}
+
+/* ============================================================
+   UPI HELPERS
+   ============================================================ */
 
 function buildUPIURL({ upiId, name, amount, note, currency = 'INR' }) {
-  if (!upiId) throw new Error('UPI ID সেট করা নেই');
+  if (!upiId) throw new Error('UPI ID not set');
   const params = new URLSearchParams();
   params.set('pa', String(upiId).trim());
   if (name) params.set('pn', String(name).trim());
@@ -812,38 +845,35 @@ function showUPIPaymentModal({ upiId, upiName, amount, invoiceNo, shopName }) {
     const old = document.getElementById('_upiPayModal');
     if (old) old.remove();
 
-    let upiURL = '';
     let qrDataURL = '';
     let err = '';
 
     try {
-      upiURL = buildUPIURL({ upiId, name: upiName || shopName, amount, note: invoiceNo });
+      const upiURL = buildUPIURL({ upiId, name: upiName || shopName, amount, note: invoiceNo });
       qrDataURL = await generateQRDataURL(upiURL, 600);
     } catch (e) {
-      err = e.message || 'QR তৈরি হয়নি';
+      err = e.message || 'QR generation failed';
     }
 
     const modal = document.createElement('div');
     modal.id = '_upiPayModal';
-    modal.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:9999;display:flex;align-items:center;justify-content:center;padding:14px;font-family:'Noto Sans Bengali',sans-serif;overflow-y:auto`;
+    modal.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:9999;display:flex;align-items:center;justify-content:center;padding:14px;font-family:system-ui,sans-serif;overflow-y:auto`;
     modal.innerHTML = `
       <div style="background:#fff;border-radius:24px;max-width:440px;width:100%;padding:24px;text-align:center;box-shadow:0 25px 70px rgba(0,0,0,.5)">
         <div style="font-size:38px;margin-bottom:6px">💳</div>
-        <h3 style="font-weight:800;font-size:20px;margin:0 0 4px;color:#111">UPI পেমেন্ট</h3>
+        <h3 style="font-weight:800;font-size:20px;margin:0 0 4px;color:#111">UPI Payment</h3>
         <p style="color:#6b7280;font-size:12px;margin:0 0 16px">
-          কাস্টমার GPay / PhonePe / Paytm দিয়ে স্ক্যান করবে
+          Customer scans with GPay / PhonePe / Paytm
         </p>
-
         <div style="background:linear-gradient(135deg,#2563eb,#7c3aed);color:#fff;border-radius:16px;padding:14px;margin-bottom:14px">
-          <div style="font-size:11px;opacity:.85">পরিশোধ করতে হবে</div>
+          <div style="font-size:11px;opacity:.85">Amount to pay</div>
           <div style="font-size:30px;font-weight:800;letter-spacing:.5px">${money(amount)}</div>
           ${invoiceNo ? `<div style="font-size:11px;opacity:.85;font-family:monospace;margin-top:4px">${esc(invoiceNo)}</div>` : ''}
         </div>
-
         ${err ? `
           <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:16px;color:#991b1b;font-size:13px">
             ⚠️ ${esc(err)}<br>
-            <span style="font-size:11px">Admin Settings এ UPI ID সেট করুন</span>
+            <span style="font-size:11px">Set UPI ID in Admin Settings</span>
           </div>
         ` : `
           <div style="background:#fff;padding:12px;border-radius:16px;display:inline-block;border:2px solid #e5e7eb">
@@ -857,17 +887,16 @@ function showUPIPaymentModal({ upiId, upiName, amount, invoiceNo, shopName }) {
             <span>✅ GPay</span><span>✅ PhonePe</span><span>✅ Paytm</span><span>✅ BHIM</span>
           </div>
         `}
-
         <div style="margin-top:18px;display:flex;flex-direction:column;gap:8px">
           <button id="_upiReceived" style="background:#16a34a;color:#fff;padding:15px;border:none;border-radius:14px;font-weight:800;font-size:15px;font-family:inherit;cursor:pointer;box-shadow:0 6px 18px rgba(22,163,74,.35)">
-            ✓ পেমেন্ট পেয়েছি
+            ✓ Payment Received
           </button>
           <button id="_upiCancel" style="background:#f3f4f6;color:#374151;padding:13px;border:none;border-radius:14px;font-weight:700;font-size:14px;font-family:inherit;cursor:pointer">
-            বাতিল করুন
+            Cancel
           </button>
         </div>
         <p style="font-size:10px;color:#9ca3af;margin-top:10px;line-height:1.5">
-          পেমেন্ট কনফার্ম করার আগে নিজের UPI অ্যাপে নোটিফিকেশন দেখে নিন
+          Verify payment in your own UPI app before confirming
         </p>
       </div>`;
     document.body.appendChild(modal);
@@ -884,26 +913,28 @@ async function showShopUPIQR({ upiId, upiName, shopName }) {
   const qr = await generateQRDataURL(upiURL, 600);
   const modal = document.createElement('div');
   modal.id = '_shopUPIModal';
-  modal.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;font-family:'Noto Sans Bengali',sans-serif`;
+  modal.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;font-family:system-ui,sans-serif`;
   modal.innerHTML = `
     <div style="background:#fff;border-radius:22px;max-width:420px;width:100%;padding:24px;text-align:center">
       <div style="font-size:36px;margin-bottom:6px">📱</div>
-      <h3 style="font-weight:800;font-size:18px;margin:0 0 4px">আমার UPI QR</h3>
-      <p style="color:#6b7280;font-size:12px;margin:0 0 16px">যেকোনো amount কাস্টমার নিজে দেবে</p>
+      <h3 style="font-weight:800;font-size:18px;margin:0 0 4px">My UPI QR</h3>
+      <p style="color:#6b7280;font-size:12px;margin:0 0 16px">Customer enters any amount</p>
       <div style="background:#fff;padding:12px;border-radius:14px;display:inline-block;border:1px solid #e5e7eb">
         <img src="${qr}" style="width:250px;height:250px;display:block">
       </div>
       <div style="margin-top:12px;background:#f9fafb;border-radius:10px;padding:8px">
         <div style="font-family:monospace;font-weight:700;font-size:13px;color:#111;word-break:break-all">${esc(upiId)}</div>
       </div>
-      <button id="_shopUPIClose" style="width:100%;background:#f3f4f6;color:#374151;padding:13px;border:none;border-radius:12px;font-weight:700;font-size:14px;font-family:inherit;cursor:pointer;margin-top:14px">বন্ধ</button>
+      <button id="_shopUPIClose" style="width:100%;background:#f3f4f6;color:#374151;padding:13px;border:none;border-radius:12px;font-weight:700;font-size:14px;font-family:inherit;cursor:pointer;margin-top:14px">Close</button>
     </div>`;
   document.body.appendChild(modal);
   document.getElementById('_shopUPIClose').onclick = () => modal.remove();
   modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
 }
 
-/* ── Toast ── */
+/* ============================================================
+   TOAST
+   ============================================================ */
 function toast(msg, type = 'info') {
   let tc = document.getElementById('toastContainer');
   if (!tc) {
@@ -917,7 +948,7 @@ function toast(msg, type = 'info') {
   const el = document.createElement('div');
   el.style.cssText = `background:${colors[type]};color:#fff;padding:12px 16px;border-radius:12px;
     box-shadow:0 10px 30px rgba(0,0,0,.3);display:flex;align-items:center;gap:8px;font-size:14px;
-    font-weight:500;font-family:'Noto Sans Bengali',sans-serif`;
+    font-weight:500;font-family:system-ui,sans-serif`;
   el.innerHTML = `<span>${icons[type]}</span><span>${esc(msg)}</span>`;
   tc.appendChild(el);
   setTimeout(() => {
@@ -927,7 +958,9 @@ function toast(msg, type = 'info') {
   }, 2400);
 }
 
-/* ── Confirm ── */
+/* ============================================================
+   CONFIRM
+   ============================================================ */
 let _confirmResolve = null;
 function askConfirm(msg) {
   return new Promise(res => {
@@ -936,14 +969,14 @@ function askConfirm(msg) {
     if (!modal) {
       modal = document.createElement('div');
       modal.id = '_tpConfirm';
-      modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9998;display:none;align-items:center;justify-content:center;padding:16px;font-family:"Noto Sans Bengali",sans-serif';
+      modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9998;display:none;align-items:center;justify-content:center;padding:16px;font-family:system-ui,sans-serif';
       modal.innerHTML = `
         <div style="background:#fff;border-radius:20px;max-width:380px;width:100%;padding:24px">
           <div style="text-align:center"><div style="font-size:40px;margin-bottom:8px">⚠️</div>
           <p id="_tpConfirmMsg" style="color:#374151;font-weight:500;margin-bottom:24px"></p></div>
           <div style="display:flex;gap:12px">
-            <button id="_tpNo" style="flex:1;background:#f3f4f6;padding:12px;border-radius:12px;font-weight:600;font-family:inherit">না</button>
-            <button id="_tpYes" style="flex:1;background:#dc2626;color:#fff;padding:12px;border-radius:12px;font-weight:600;font-family:inherit">হ্যাঁ</button>
+            <button id="_tpNo" style="flex:1;background:#f3f4f6;padding:12px;border-radius:12px;font-weight:600;font-family:inherit;cursor:pointer">No</button>
+            <button id="_tpYes" style="flex:1;background:#dc2626;color:#fff;padding:12px;border-radius:12px;font-weight:600;font-family:inherit;cursor:pointer">Yes</button>
           </div>
         </div>`;
       document.body.appendChild(modal);
@@ -955,7 +988,9 @@ function askConfirm(msg) {
   });
 }
 
-/* ── Auth Guard ── */
+/* ============================================================
+   AUTH GUARD
+   ============================================================ */
 async function requireAuth(requiredRole) {
   return new Promise(resolve => {
     const unsub = auth.onAuthStateChanged(async user => {
@@ -978,7 +1013,9 @@ async function requireAuth(requiredRole) {
   });
 }
 
-/* ── Expose ── */
+/* ============================================================
+   EXPOSE
+   ============================================================ */
 window.TP = {
   // Core
   auth, db, FV, $, $$,
@@ -993,11 +1030,13 @@ window.TP = {
   // Remote Scanner Session
   generateSessionId, buildScannerURL, createScannerSession, deleteScannerSession,
   // Remote Payment Session
-  createPaymentSession, buildPaymentURL, deletePaymentSession, requestRemotePayment,
-  // UPI Payment
+  createPaymentSession, buildPaymentURL, deletePaymentSession,
+  // Payment Request Flow (POS-controlled)
+  createPaymentRequest, confirmPaymentRequest, cancelPaymentRequest,
+  // UPI helpers
   buildUPIURL, showUPIPaymentModal, showShopUPIQR,
   // UI
   toast, askConfirm,
   // Auth
   requireAuth,
-};   
+};
