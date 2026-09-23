@@ -1,7 +1,8 @@
-/* ============================================================
+   /* ============================================================
    TextilePOS — Common Utilities
-   + Barcode + QR Code (embedded generator) + Camera Scanner
+   + Barcode + QR Code (embedded) + Camera Scanner
    + Remote Scanner Session
+   + Remote Payment Device Session
    ============================================================ */
 
 if (!window.FIREBASE_CONFIG || window.FIREBASE_CONFIG.apiKey === 'PASTE_YOUR_API_KEY_HERE') {
@@ -726,6 +727,182 @@ async function deleteScannerSession(sessionId) {
   } catch (e) { console.error('deleteScannerSession:', e); }
 }
 
+/* ═══════════════════════════════════════════════
+   PAYMENT SESSION — Remote payment device
+   ═══════════════════════════════════════════════ */
+async function createPaymentSession(shopId, salesmanId, salesmanName, shopName, upiId, upiName) {
+  const sessionId = generateSessionId();
+  await db.collection('paymentSessions').doc(sessionId).set({
+    sessionId,
+    shopId,
+    shopName: shopName || '',
+    salesmanId,
+    salesmanName: salesmanName || '',
+    upiId,
+    upiName: upiName || '',
+    deviceConnected: false,
+    createdAt: FV.serverTimestamp(),
+    lastPing: FV.serverTimestamp(),
+  });
+  return sessionId;
+}
+
+function buildPaymentURL(sessionId) {
+  const url = new URL('payment.html', location.href);
+  url.searchParams.set('s', sessionId);
+  return url.href;
+}
+
+async function deletePaymentSession(sessionId) {
+  if (!sessionId) return;
+  try {
+    const ref = db.collection('paymentSessions').doc(sessionId);
+    const reqs = await ref.collection('requests').get();
+    const batch = db.batch();
+    reqs.docs.forEach(d => batch.delete(d.ref));
+    batch.delete(ref);
+    await batch.commit();
+  } catch (e) { console.error('deletePaymentSession:', e); }
+}
+
+/**
+ * Push a UPI payment request to the remote payment device.
+ * Resolves with 'paid' | 'cancelled' | 'timeout'.
+ */
+async function requestRemotePayment(sessionId, { amount, invoiceNo, customerName }) {
+  const reqRef = db.collection('paymentSessions').doc(sessionId).collection('requests').doc();
+  await reqRef.set({
+    amount: Number(amount) || 0,
+    invoiceNo: invoiceNo || '',
+    customerName: customerName || '',
+    status: 'pending',
+    createdAt: FV.serverTimestamp(),
+  });
+
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = (val) => { if (done) return; done = true; try { unsub(); } catch {} resolve(val); };
+    const unsub = reqRef.onSnapshot(snap => {
+      if (!snap.exists) return;
+      const d = snap.data();
+      if (d.status === 'paid') finish('paid');
+      else if (d.status === 'cancelled') finish('cancelled');
+    });
+    setTimeout(() => finish('timeout'), 5 * 60 * 1000);
+  });
+}
+
+/* ═══════════════════════════════════════════════
+   UPI PAYMENT HELPERS
+   ═══════════════════════════════════════════════ */
+
+function buildUPIURL({ upiId, name, amount, note, currency = 'INR' }) {
+  if (!upiId) throw new Error('UPI ID সেট করা নেই');
+  const params = new URLSearchParams();
+  params.set('pa', String(upiId).trim());
+  if (name) params.set('pn', String(name).trim());
+  if (amount != null && amount !== '') params.set('am', Number(amount).toFixed(2));
+  params.set('cu', currency);
+  if (note) params.set('tn', String(note).trim());
+  return 'upi://pay?' + params.toString();
+}
+
+function showUPIPaymentModal({ upiId, upiName, amount, invoiceNo, shopName }) {
+  return new Promise(async (resolve) => {
+    const old = document.getElementById('_upiPayModal');
+    if (old) old.remove();
+
+    let upiURL = '';
+    let qrDataURL = '';
+    let err = '';
+
+    try {
+      upiURL = buildUPIURL({ upiId, name: upiName || shopName, amount, note: invoiceNo });
+      qrDataURL = await generateQRDataURL(upiURL, 600);
+    } catch (e) {
+      err = e.message || 'QR তৈরি হয়নি';
+    }
+
+    const modal = document.createElement('div');
+    modal.id = '_upiPayModal';
+    modal.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:9999;display:flex;align-items:center;justify-content:center;padding:14px;font-family:'Noto Sans Bengali',sans-serif;overflow-y:auto`;
+    modal.innerHTML = `
+      <div style="background:#fff;border-radius:24px;max-width:440px;width:100%;padding:24px;text-align:center;box-shadow:0 25px 70px rgba(0,0,0,.5)">
+        <div style="font-size:38px;margin-bottom:6px">💳</div>
+        <h3 style="font-weight:800;font-size:20px;margin:0 0 4px;color:#111">UPI পেমেন্ট</h3>
+        <p style="color:#6b7280;font-size:12px;margin:0 0 16px">
+          কাস্টমার GPay / PhonePe / Paytm দিয়ে স্ক্যান করবে
+        </p>
+
+        <div style="background:linear-gradient(135deg,#2563eb,#7c3aed);color:#fff;border-radius:16px;padding:14px;margin-bottom:14px">
+          <div style="font-size:11px;opacity:.85">পরিশোধ করতে হবে</div>
+          <div style="font-size:30px;font-weight:800;letter-spacing:.5px">${money(amount)}</div>
+          ${invoiceNo ? `<div style="font-size:11px;opacity:.85;font-family:monospace;margin-top:4px">${esc(invoiceNo)}</div>` : ''}
+        </div>
+
+        ${err ? `
+          <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:16px;color:#991b1b;font-size:13px">
+            ⚠️ ${esc(err)}<br>
+            <span style="font-size:11px">Admin Settings এ UPI ID সেট করুন</span>
+          </div>
+        ` : `
+          <div style="background:#fff;padding:12px;border-radius:16px;display:inline-block;border:2px solid #e5e7eb">
+            <img src="${qrDataURL}" style="width:250px;height:250px;display:block">
+          </div>
+          <div style="margin-top:10px;background:#f9fafb;border-radius:10px;padding:8px">
+            <div style="font-size:10px;color:#6b7280">UPI ID</div>
+            <div style="font-family:monospace;font-weight:700;font-size:13px;color:#111;word-break:break-all">${esc(upiId)}</div>
+          </div>
+          <div style="margin-top:10px;display:flex;justify-content:center;gap:12px;font-size:10px;color:#6b7280">
+            <span>✅ GPay</span><span>✅ PhonePe</span><span>✅ Paytm</span><span>✅ BHIM</span>
+          </div>
+        `}
+
+        <div style="margin-top:18px;display:flex;flex-direction:column;gap:8px">
+          <button id="_upiReceived" style="background:#16a34a;color:#fff;padding:15px;border:none;border-radius:14px;font-weight:800;font-size:15px;font-family:inherit;cursor:pointer;box-shadow:0 6px 18px rgba(22,163,74,.35)">
+            ✓ পেমেন্ট পেয়েছি
+          </button>
+          <button id="_upiCancel" style="background:#f3f4f6;color:#374151;padding:13px;border:none;border-radius:14px;font-weight:700;font-size:14px;font-family:inherit;cursor:pointer">
+            বাতিল করুন
+          </button>
+        </div>
+        <p style="font-size:10px;color:#9ca3af;margin-top:10px;line-height:1.5">
+          পেমেন্ট কনফার্ম করার আগে নিজের UPI অ্যাপে নোটিফিকেশন দেখে নিন
+        </p>
+      </div>`;
+    document.body.appendChild(modal);
+
+    document.getElementById('_upiReceived').onclick = () => { modal.remove(); resolve('received'); };
+    document.getElementById('_upiCancel').onclick = () => { modal.remove(); resolve('cancelled'); };
+  });
+}
+
+async function showShopUPIQR({ upiId, upiName, shopName }) {
+  const old = document.getElementById('_shopUPIModal');
+  if (old) old.remove();
+  const upiURL = buildUPIURL({ upiId, name: upiName || shopName, amount: '', note: '' });
+  const qr = await generateQRDataURL(upiURL, 600);
+  const modal = document.createElement('div');
+  modal.id = '_shopUPIModal';
+  modal.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;font-family:'Noto Sans Bengali',sans-serif`;
+  modal.innerHTML = `
+    <div style="background:#fff;border-radius:22px;max-width:420px;width:100%;padding:24px;text-align:center">
+      <div style="font-size:36px;margin-bottom:6px">📱</div>
+      <h3 style="font-weight:800;font-size:18px;margin:0 0 4px">আমার UPI QR</h3>
+      <p style="color:#6b7280;font-size:12px;margin:0 0 16px">যেকোনো amount কাস্টমার নিজে দেবে</p>
+      <div style="background:#fff;padding:12px;border-radius:14px;display:inline-block;border:1px solid #e5e7eb">
+        <img src="${qr}" style="width:250px;height:250px;display:block">
+      </div>
+      <div style="margin-top:12px;background:#f9fafb;border-radius:10px;padding:8px">
+        <div style="font-family:monospace;font-weight:700;font-size:13px;color:#111;word-break:break-all">${esc(upiId)}</div>
+      </div>
+      <button id="_shopUPIClose" style="width:100%;background:#f3f4f6;color:#374151;padding:13px;border:none;border-radius:12px;font-weight:700;font-size:14px;font-family:inherit;cursor:pointer;margin-top:14px">বন্ধ</button>
+    </div>`;
+  document.body.appendChild(modal);
+  document.getElementById('_shopUPIClose').onclick = () => modal.remove();
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+}
+
 /* ── Toast ── */
 function toast(msg, type = 'info') {
   let tc = document.getElementById('toastContainer');
@@ -803,12 +980,24 @@ async function requireAuth(requiredRole) {
 
 /* ── Expose ── */
 window.TP = {
+  // Core
   auth, db, FV, $, $$,
+  // Format & utils
   bn, money, esc, todayKey, fmtDate, isToday, uid, copyText,
+  // Barcode / QR / Scanner
   generateBarcode, generateQRDataURL, downloadDataURL, showQRModal, openQRScanner,
+  // Validation
   normalizeEmail, isValidGmail, normalizePhone, isValidPhone,
+  // Shop
   generateShopId, salesmanEmail,
+  // Remote Scanner Session
   generateSessionId, buildScannerURL, createScannerSession, deleteScannerSession,
+  // Remote Payment Session
+  createPaymentSession, buildPaymentURL, deletePaymentSession, requestRemotePayment,
+  // UPI Payment
+  buildUPIURL, showUPIPaymentModal, showShopUPIQR,
+  // UI
   toast, askConfirm,
+  // Auth
   requireAuth,
-};
+};   
