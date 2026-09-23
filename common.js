@@ -2,11 +2,12 @@
    TextilePOS — Common Utilities & Firebase Init
    ============================================================ */
 
-if (!window.FIREBASE_CONFIG || window.FIREBASE_CONFIG.apiKey === 'AIzaSyDc8Ui4b7oXfjpngns6Vd7TFyCfkt1TJeQ') {
+if (!window.FIREBASE_CONFIG || window.FIREBASE_CONFIG.apiKey === 'PASTE_YOUR_API_KEY_HERE') {
   document.body.innerHTML = `<div style="padding:40px;font-family:sans-serif;max-width:600px;margin:auto;line-height:1.8">
     <h1 style="color:#dc2626">⚠️ Firebase Config সেট করা হয়নি</h1>
     <p><b>firebase-config.js</b> ফাইলটি খুলে <b>FIREBASE_CONFIG</b> object এর মানগুলো পেস্ট করুন।</p>
-    <p>বিস্তারিত: README.md দেখুন।</p></div>`;
+    <p>বিস্তারিত: README.md দেখুন।</p>
+  </div>`;
   throw new Error('Firebase config missing');
 }
 
@@ -139,9 +140,6 @@ async function requireAuth(requiredRole) {
           shop: { shopId: userData.shopId, ...shopDoc.data() },
         };
         if (requiredRole === 'admin' && profile.role !== 'admin') { location.href = 'salesman.html'; return; }
-        if (profile.mustChangePassword && location.pathname.indexOf('force-password') === -1) {
-          // Handled by page-specific logic
-        }
         resolve(profile);
       } catch (e) {
         console.error(e);
