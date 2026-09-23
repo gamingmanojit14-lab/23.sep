@@ -1043,4 +1043,558 @@ function renderProducts() {
               ${p.category ? `<div class="text-[10px] text-gray-400 mt-0.5">📁 ${TP.esc(p.category)}</div>` : ''}
               ${p.barcode ? `<div class="text-[10px] text-gray-400 font-mono"># ${TP.esc(p.barcode)}</div>` : ''}
               <div class="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-gray-500 mt-1.5">
-                <span>🏪 <b class="
+                <span>🏪 <b class="text-gray-700">${TP.money(p.retailPrice)}</b></span>
+                <span>🏭 <b class="text-gray-700">${TP.money(p.wholesalePrice)}</b></span>
+              </div>
+              <div class="mt-1.5">
+                <span class="inline-block px-2 py-0.5 rounded-md text-[11px] font-semibold
+                  ${stock<=0?'bg-red-100 text-red-600':low?'bg-orange-100 text-orange-700':'bg-green-100 text-green-700'}">
+                  স্টক: ${TP.bn(stock)} ${TP.esc(p.unit||'')}
+                </span>
+              </div>
+            </div>
+          </div>
+          <div class="flex gap-2 mt-3 pt-3 border-t border-gray-100">
+            <button data-pstock="${p.id}" class="flex-1 bg-green-50 text-green-700 py-2 rounded-lg text-xs font-semibold">📦 স্টক যোগ</button>
+            <button data-pedit="${p.id}" class="flex-1 bg-blue-50 text-blue-600 py-2 rounded-lg text-xs font-semibold">✏️ এডিট</button>
+            <button data-pdel="${p.id}" class="px-3 bg-red-50 text-red-600 py-2 rounded-lg text-xs font-semibold">🗑</button>
+          </div>
+        </div>`;
+    }).join('') : `<div class="bg-white rounded-xl p-8 text-center text-gray-400">কোনো প্রোডাক্ট নেই</div>`;
+
+    document.querySelectorAll('[data-pedit]').forEach(b => b.addEventListener('click', () => openProductForm(b.dataset.pedit)));
+    document.querySelectorAll('[data-pdel]').forEach(b => b.addEventListener('click', async () => {
+      const p = A.products.find(x => x.id === b.dataset.pdel);
+      if (!p) return;
+      if (await TP.askConfirm(`"${p.name}" ডিলিট করবেন?`)) {
+        await TP.db.collection('shops').doc(A.shopId).collection('products').doc(p.id).delete();
+        TP.toast('ডিলিট হয়েছে', 'success');
+      }
+    }));
+    document.querySelectorAll('[data-pstock]').forEach(b => b.addEventListener('click', () => {
+      const p = A.products.find(x => x.id === b.dataset.pstock);
+      if (!p) return;
+      openForm(`স্টক যোগ — ${p.name}`,
+        [
+          { name: 'qty', label: `পরিমাণ (বর্তমান স্টক: ${TP.bn(p.stockQty)} ${p.unit||''})`, type: 'number', required: true, min: 0, step: '0.01', default: 10 },
+          { name: 'note', label: 'নোট (ঐচ্ছিক)' },
+        ], {}, async d => {
+          const qty = +d.qty;
+          if (!qty || qty <= 0) throw new Error('সঠিক পরিমাণ দিন');
+          await TP.db.collection('shops').doc(A.shopId).collection('products').doc(p.id)
+            .update({ stockQty: (+p.stockQty||0) + qty });
+          TP.toast(`${TP.bn(qty)} ${p.unit||''} স্টক যোগ হয়েছে`, 'success');
+        });
+    }));
+  };
+
+  renderList();
+  document.getElementById('prodSearch').addEventListener('input', e => renderList(e.target.value));
+  document.getElementById('addProd').addEventListener('click', () => openProductForm(null));
+}
+
+function openProductForm(id) {
+  const p = id ? A.products.find(x => x.id === id) : null;
+  openForm(p ? 'প্রোডাক্ট এডিট' : 'নতুন প্রোডাক্ট',
+    [
+      { name: 'name', label: 'নাম', required: true },
+      { name: 'category', label: 'ক্যাটাগরি', placeholder: 'যেমন: শার্ট, শাড়ি' },
+      { name: 'barcode', label: 'বারকোড (ঐচ্ছিক)' },
+      { name: 'unit', label: 'একক', default: 'গজ' },
+      { name: 'retailPrice', label: 'রিটেল দাম (৳)', type: 'number', step: '0.01', required: true, min: 0 },
+      { name: 'wholesalePrice', label: 'হোলসেল দাম (৳)', type: 'number', step: '0.01', required: true, min: 0 },
+      { name: 'stockQty', label: 'স্টক', type: 'number', step: '0.01', required: true, min: 0 },
+      { name: 'lowStockAlert', label: 'লো স্টক সতর্কতা', type: 'number', step: '1', default: 5, min: 0 },
+    ], p ? { ...p } : {},
+    async d => {
+      const ref = TP.db.collection('shops').doc(A.shopId).collection('products');
+      const body = {
+        name: d.name.trim(),
+        category: (d.category||'').trim(),
+        barcode: (d.barcode||'').trim(),
+        unit: (d.unit||'').trim(),
+        retailPrice: +d.retailPrice || 0,
+        wholesalePrice: +d.wholesalePrice || 0,
+        stockQty: +d.stockQty || 0,
+        lowStockAlert: +d.lowStockAlert || 0,
+      };
+      if (p) await ref.doc(p.id).update(body);
+      else await ref.add({ ...body, createdAt: TP.FV.serverTimestamp() });
+      TP.toast('সেভ হয়েছে', 'success');
+    });
+}
+
+/* ============================================================
+   INVENTORY (stock overview)
+   ============================================================ */
+function renderInventory() {
+  const el = document.getElementById('page-inventory');
+  const lowStock = A.products.filter(p => (+p.stockQty||0) <= (+p.lowStockAlert||0));
+  const outStock = A.products.filter(p => (+p.stockQty||0) <= 0);
+  const totalValue = A.products.reduce((a, p) => a + (+p.stockQty||0) * (+p.wholesalePrice||0), 0);
+
+  el.innerHTML = `
+    <div class="p-3 space-y-3">
+      <div class="bg-gradient-to-br from-green-50 to-blue-50 border border-green-200 rounded-2xl p-4">
+        <div class="text-xs text-gray-600 font-medium">মোট স্টক মূল্য (হোলসেল)</div>
+        <div class="text-2xl font-extrabold text-green-700 mt-1">${TP.money(totalValue)}</div>
+        <div class="text-[11px] text-gray-500 mt-1">${TP.bn(A.products.length)} টি প্রোডাক্ট</div>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div class="bg-red-50 border border-red-200 rounded-2xl p-4">
+          <div class="text-[11px] text-red-700 font-bold">স্টক শেষ</div>
+          <div class="text-2xl font-extrabold text-red-600 mt-1">${TP.bn(outStock.length)}</div>
+        </div>
+        <div class="bg-orange-50 border border-orange-200 rounded-2xl p-4">
+          <div class="text-[11px] text-orange-700 font-bold">কম স্টক</div>
+          <div class="text-2xl font-extrabold text-orange-600 mt-1">${TP.bn(lowStock.length)}</div>
+        </div>
+      </div>
+      <h3 class="text-sm font-bold text-gray-500 mt-2">📦 স্টক তালিকা</h3>
+      <div class="space-y-2">
+        ${A.products.slice().sort((a,b) => (+a.stockQty||0) - (+b.stockQty||0)).map(p => {
+          const stock = +p.stockQty||0;
+          const low = stock <= (+p.lowStockAlert||0);
+          return `<div class="bg-white rounded-xl p-3 flex justify-between items-center shadow-sm border border-gray-100">
+            <div class="min-w-0 flex-1">
+              <div class="font-semibold text-sm truncate">${TP.esc(p.name)}</div>
+              <div class="text-[10px] text-gray-400">${TP.esc(p.category||'')} ${p.barcode ? '• '+TP.esc(p.barcode) : ''}</div>
+            </div>
+            <div class="text-right">
+              <div class="font-bold ${stock<=0?'text-red-600':low?'text-orange-600':'text-green-700'}">${TP.bn(stock)} ${TP.esc(p.unit||'')}</div>
+            </div>
+          </div>`;
+        }).join('') || `<div class="bg-white rounded-xl p-8 text-center text-gray-400">কোনো প্রোডাক্ট নেই</div>`}
+      </div>
+    </div>`;
+}
+
+/* ============================================================
+   CUSTOMERS
+   ============================================================ */
+function renderCustomers() {
+  const el = document.getElementById('page-customers');
+  const totalDue = A.customers.reduce((a, c) => a + (+c.due||0), 0);
+  const sorted = A.customers.slice().sort((a, b) => (+b.due||0) - (+a.due||0));
+
+  el.innerHTML = `
+    <div class="p-3 space-y-3">
+      <div class="bg-gradient-to-br from-red-50 to-orange-50 border border-red-100 rounded-2xl p-4">
+        <div class="text-xs text-gray-600 font-medium">মোট বাকি</div>
+        <div class="text-2xl font-extrabold text-red-600 mt-0.5">${TP.money(totalDue)}</div>
+        <div class="text-[11px] text-gray-500 mt-1">${TP.bn(A.customers.filter(c => (+c.due||0) > 0).length)} জন কাস্টমারের কাছে</div>
+      </div>
+      <button id="addCust" class="w-full bg-blue-600 text-white py-3.5 rounded-xl font-semibold shadow-lg">+ নতুন কাস্টমার</button>
+      <input id="custSearch" type="search" placeholder="🔍 নাম / মোবাইল..."
+        class="w-full px-4 py-3 rounded-xl border-2 border-gray-200 bg-white focus:border-blue-500 focus:outline-none">
+      <div id="custList" class="space-y-2"></div>
+    </div>`;
+
+  const renderList = (q = '') => {
+    const list = sorted.filter(c => !q ||
+      (c.name||'').toLowerCase().includes(q.toLowerCase()) ||
+      (c.phone||'').includes(q));
+    document.getElementById('custList').innerHTML = list.length ? list.map(c => `
+      <div class="bg-white rounded-xl p-3.5 shadow-sm border border-gray-100">
+        <div class="flex justify-between items-start gap-2">
+          <div class="min-w-0 flex-1">
+            <div class="font-semibold text-sm truncate">${TP.esc(c.name)}</div>
+            ${c.phone ? `<div class="text-xs text-gray-500 mt-0.5">📞 ${TP.bn(c.phone)}</div>` : ''}
+            ${c.address ? `<div class="text-[11px] text-gray-400 mt-0.5 truncate">📍 ${TP.esc(c.address)}</div>` : ''}
+          </div>
+          <div class="text-right">
+            ${(+c.due||0) > 0 ? `<div class="font-bold text-red-600 text-sm">বাকি ${TP.money(c.due)}</div>` : `<div class="text-xs text-green-600 font-medium">পরিশোধিত</div>`}
+          </div>
+        </div>
+        <div class="flex gap-2 mt-3 pt-3 border-t border-gray-100">
+          <button data-cpay="${c.id}" class="flex-1 bg-green-50 text-green-700 py-2 rounded-lg text-xs font-semibold">💵 পেমেন্ট</button>
+          <button data-cedit="${c.id}" class="flex-1 bg-blue-50 text-blue-600 py-2 rounded-lg text-xs font-semibold">✏️ এডিট</button>
+          <button data-cdel="${c.id}" class="px-3 bg-red-50 text-red-600 py-2 rounded-lg text-xs font-semibold">🗑</button>
+        </div>
+      </div>`).join('') : `<div class="bg-white rounded-xl p-8 text-center text-gray-400">কোনো কাস্টমার নেই</div>`;
+
+    document.querySelectorAll('[data-cpay]').forEach(b => b.addEventListener('click', () => openPaymentModal(b.dataset.cpay)));
+    document.querySelectorAll('[data-cedit]').forEach(b => b.addEventListener('click', () => openCustomerForm(b.dataset.cedit)));
+    document.querySelectorAll('[data-cdel]').forEach(b => b.addEventListener('click', async () => {
+      const c = A.customers.find(x => x.id === b.dataset.cdel);
+      if (!c) return;
+      if (+c.due > 0) { TP.toast('বাকি থাকা কাস্টমার ডিলিট করা যাবে না', 'error'); return; }
+      if (await TP.askConfirm(`"${c.name}" ডিলিট করবেন?`)) {
+        await TP.db.collection('shops').doc(A.shopId).collection('customers').doc(c.id).delete();
+        TP.toast('ডিলিট হয়েছে', 'success');
+      }
+    }));
+  };
+  renderList();
+  document.getElementById('custSearch').addEventListener('input', e => renderList(e.target.value));
+  document.getElementById('addCust').addEventListener('click', () => openCustomerForm(null));
+}
+
+function openCustomerForm(id) {
+  const c = id ? A.customers.find(x => x.id === id) : null;
+  openForm(c ? 'কাস্টমার এডিট' : 'নতুন কাস্টমার',
+    [
+      { name: 'name', label: 'নাম', required: true },
+      { name: 'phone', label: 'মোবাইল', type: 'tel' },
+      { name: 'address', label: 'ঠিকানা', type: 'textarea' },
+    ], c ? { name: c.name, phone: c.phone, address: c.address } : {},
+    async d => {
+      const ref = TP.db.collection('shops').doc(A.shopId).collection('customers');
+      const body = { name: d.name.trim(), phone: d.phone.trim(), address: (d.address||'').trim(), due: c ? (+c.due||0) : 0 };
+      if (c) await ref.doc(c.id).update(body);
+      else await ref.add({ ...body, createdAt: TP.FV.serverTimestamp() });
+      TP.toast('সেভ হয়েছে', 'success');
+    });
+}
+
+function openPaymentModal(custId) {
+  const c = A.customers.find(x => x.id === custId);
+  if (!c) return;
+  openForm(`পেমেন্ট — ${c.name}`,
+    [
+      { name: 'amount', label: `পরিমাণ (বাকি: ${TP.money(c.due)})`, type: 'number', required: true, min: 1, default: c.due },
+      { name: 'method', label: 'মেথড', type: 'select', options: [
+        { value: 'cash', label: '💵 নগদ' }, { value: 'bkash', label: '📱 বিকাশ' },
+        { value: 'card', label: '💳 কার্ড' }, { value: 'bank', label: '🏦 ব্যাংক' }]},
+      { name: 'note', label: 'নোট (ঐচ্ছিক)' },
+    ], {}, async d => {
+      const amt = +d.amount;
+      if (!amt || amt <= 0) throw new Error('সঠিক পরিমাণ দিন');
+      if (amt > (+c.due||0)) throw new Error('বাকির চেয়ে বেশি');
+      const shopRef = TP.db.collection('shops').doc(A.shopId);
+      const batch = TP.db.batch();
+      batch.update(shopRef.collection('customers').doc(c.id), { due: (+c.due||0) - amt });
+      batch.set(shopRef.collection('payments').doc(), {
+        customerId: c.id, customerName: c.name,
+        amount: amt, method: d.method, note: d.note || '',
+        salesmanName: A.profile.name, paymentDate: TP.FV.serverTimestamp(),
+      });
+      await batch.commit();
+      TP.toast(`${TP.money(amt)} গৃহীত`, 'success');
+    });
+}
+
+/* ============================================================
+   SALESMEN
+   ============================================================ */
+function renderSalesmen() {
+  const el = document.getElementById('page-salesmen');
+  const salesmen = A.users.filter(u => u.role === 'salesman');
+
+  el.innerHTML = `
+    <div class="p-3 space-y-3">
+      <div class="bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-800">
+        💡 সেলসম্যানকে <b>Shop ID</b>, <b>ইউজারনেম</b> আর <b>টেম্পোরারি পাসওয়ার্ড</b> দিন। সে প্রথমবার লগইন করে নিজের পাসওয়ার্ড পরিবর্তন করবে।
+      </div>
+      <button id="addSalesman" class="w-full bg-blue-600 text-white py-3.5 rounded-xl font-semibold shadow-lg">+ নতুন সেলসম্যান তৈরি করুন</button>
+      <div id="smList" class="space-y-2">
+        ${salesmen.length ? salesmen.map(u => {
+          const sales = A.sales.filter(s => s.salesmanId === u.id);
+          const todaySales = sales.filter(s => TP.isToday(s.saleDate));
+          const todayTotal = todaySales.reduce((a, s) => a + (+s.total||0), 0);
+          const totalSum = sales.reduce((a, s) => a + (+s.total||0), 0);
+          return `
+            <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+              <div class="font-bold truncate">${TP.esc(u.name)}</div>
+              <div class="text-[11px] text-gray-500 font-mono">${TP.esc(u.username)}</div>
+              <div class="text-[10px] text-gray-400 mt-0.5">যোগদান: ${TP.fmtDate(u.createdAt)}</div>
+              ${u.mustChangePassword ? `<div class="mt-1 inline-block bg-orange-100 text-orange-700 text-[10px] font-bold px-2 py-0.5 rounded">⏳ পাসওয়ার্ড পরিবর্তন হয়নি</div>` : ''}
+              <div class="grid grid-cols-2 gap-2 mt-3">
+                <div class="bg-blue-50 rounded-lg p-2.5">
+                  <div class="text-[10px] text-blue-600 font-medium">আজকের বিক্রয়</div>
+                  <div class="font-bold text-blue-600 text-sm mt-0.5">${TP.money(todayTotal)}</div>
+                </div>
+                <div class="bg-gray-50 rounded-lg p-2.5">
+                  <div class="text-[10px] text-gray-600 font-medium">মোট (${TP.bn(sales.length)})</div>
+                  <div class="font-bold text-sm mt-0.5">${TP.money(totalSum)}</div>
+                </div>
+              </div>
+              <div class="flex gap-2 mt-3 pt-3 border-t border-gray-100">
+                <button data-del-sm="${u.id}" class="flex-1 bg-red-50 text-red-600 py-2 rounded-lg text-xs font-semibold">🗑 ডিলিট</button>
+              </div>
+            </div>`;
+        }).join('') : `<div class="bg-white rounded-xl p-8 text-center text-gray-400">কোনো সেলসম্যান নেই</div>`}
+      </div>
+    </div>`;
+
+  document.getElementById('addSalesman').addEventListener('click', () => {
+    const tmpPw = 'sm' + Math.random().toString(36).slice(2, 8);
+    openForm('নতুন সেলসম্যান',
+      [
+        { name: 'name', label: 'পূর্ণ নাম', required: true, placeholder: 'যেমন: করিম মিয়া' },
+        { name: 'username', label: 'ইউজারনেম (ইংরেজি, স্পেস ছাড়া)', required: true, placeholder: 'যেমন: karim' },
+        { name: 'password', label: 'টেম্পোরারি পাসওয়ার্ড', required: true, default: tmpPw },
+      ], {}, async d => {
+        const uname = d.username.trim().toLowerCase().replace(/\s+/g, '');
+        if (uname.length < 3) throw new Error('ইউজারনেম কমপক্ষে ৩ অক্ষর');
+        if ((d.password||'').length < 6) throw new Error('পাসওয়ার্ড কমপক্ষে ৬ অক্ষর');
+        if (A.users.find(u => u.username === uname)) throw new Error('এই ইউজারনেম আগেই ব্যবহৃত');
+
+        const email = TP.salesmanEmail(A.shopId, uname);
+        const secondaryApp = firebase.initializeApp(firebase.app().options, 'Secondary' + Date.now());
+        const secondaryAuth = secondaryApp.auth();
+        let newUid;
+        try {
+          const cred = await secondaryAuth.createUserWithEmailAndPassword(email, d.password);
+          newUid = cred.user.uid;
+          await secondaryAuth.signOut();
+        } finally {
+          try { await secondaryApp.delete(); } catch {}
+        }
+
+        await TP.db.collection('users').doc(newUid).set({
+          shopId: A.shopId,
+          username: uname,
+          name: d.name.trim(),
+          role: 'salesman',
+          mustChangePassword: true,
+          createdAt: TP.FV.serverTimestamp(),
+        });
+
+        TP.toast('সেলসম্যান তৈরি হয়েছে', 'success');
+        setTimeout(() => showCreds({ name: d.name.trim(), username: uname }, d.password), 300);
+      });
+  });
+
+  document.querySelectorAll('[data-del-sm]').forEach(b => b.addEventListener('click', async () => {
+    const u = A.users.find(x => x.id === b.dataset.delSm);
+    if (!u) return;
+    if (await TP.askConfirm(`"${u.name}" ডিলিট করবেন?`)) {
+      try {
+        await TP.db.collection('users').doc(u.id).delete();
+        TP.toast('ডিলিট হয়েছে', 'success');
+      } catch (e) { TP.toast(e.message, 'error'); }
+    }
+  }));
+}
+
+function showCreds(user, password) {
+  document.getElementById('formModalTitle').textContent = 'সেলসম্যান ক্রেডেনশিয়াল';
+  document.getElementById('formModalBody').innerHTML = `
+    <div class="text-center mb-4">
+      <div class="text-5xl mb-2">✅</div>
+      <h3 class="font-bold text-lg">সেলসম্যান তৈরি হয়েছে</h3>
+      <p class="text-xs text-gray-500 mt-1">নিচের তথ্যগুলো সেলসম্যানকে দিন</p>
+    </div>
+    <div class="space-y-2 bg-blue-50 rounded-xl p-4 border-2 border-dashed border-blue-300">
+      <div class="flex justify-between items-center"><span class="text-xs text-gray-600">Shop ID</span><span class="font-mono font-bold text-blue-600">${TP.esc(A.shopId)}</span></div>
+      <div class="flex justify-between items-center"><span class="text-xs text-gray-600">নাম</span><span class="font-semibold">${TP.esc(user.name)}</span></div>
+      <div class="flex justify-between items-center"><span class="text-xs text-gray-600">ইউজারনেম</span><span class="font-mono font-bold">${TP.esc(user.username)}</span></div>
+      <div class="flex justify-between items-center"><span class="text-xs text-gray-600">টেম্পোরারি পাসওয়ার্ড</span><span class="font-mono font-bold text-red-600">${TP.esc(password)}</span></div>
+    </div>
+    <div class="bg-yellow-50 border border-yellow-200 rounded-xl p-3 text-xs text-yellow-800 mt-3">
+      ⚠️ সেলসম্যান প্রথমবার লগইন করে অবশ্যই পাসওয়ার্ড পরিবর্তন করবে।
+    </div>
+    <button id="copyCreds" class="w-full mt-4 bg-blue-600 text-white py-3 rounded-xl font-semibold">📋 সব কপি করুন</button>`;
+  document.getElementById('formModalFooter').style.display = 'none';
+  document.getElementById('formModalForm').onsubmit = e => e.preventDefault();
+
+  setTimeout(() => {
+    document.getElementById('copyCreds').addEventListener('click', async () => {
+      await TP.copyText(`Shop ID: ${A.shopId}\nনাম: ${user.name}\nইউজারনেম: ${user.username}\nপাসওয়ার্ড: ${password}`);
+      TP.toast('কপি হয়েছে', 'success');
+    });
+    const obs = new MutationObserver(() => {
+      if (document.getElementById('formModal').classList.contains('hide')) {
+        document.getElementById('formModalFooter').style.display = 'flex';
+        document.getElementById('formModalForm').onsubmit = null;
+        obs.disconnect();
+      }
+    });
+    obs.observe(document.getElementById('formModal'), { attributes: true, attributeFilter: ['class'] });
+  }, 50);
+  openModal('formModal');
+}
+
+/* ============================================================
+   REPORTS
+   ============================================================ */
+function renderReports() {
+  const el = document.getElementById('page-reports');
+  const periods = { today: 'আজ', week: '৭ দিন', month: '৩০ দিন', all: 'সব' };
+  const getStart = () => {
+    const now = new Date();
+    if (A.reportPeriod === 'today') return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    if (A.reportPeriod === 'week')  return new Date(now.getTime() - 7*24*60*60*1000);
+    if (A.reportPeriod === 'month') return new Date(now.getTime() - 30*24*60*60*1000);
+    return new Date(0);
+  };
+  const start = getStart();
+  const filtered = A.sales.filter(s => {
+    const d = s.saleDate?.toDate ? s.saleDate.toDate() : new Date(s.saleDate);
+    return d >= start;
+  });
+
+  const totalSales = filtered.reduce((a, s) => a + (+s.total||0), 0);
+  const totalPaid  = filtered.reduce((a, s) => a + (+s.paid||0), 0);
+  const totalDue   = filtered.reduce((a, s) => a + (+s.due||0), 0);
+  const totalDisc  = filtered.reduce((a, s) => a + (+s.discount||0), 0);
+
+  // Product-wise
+  const productMap = {};
+  filtered.forEach(s => s.items?.forEach(it => {
+    if (!productMap[it.productId]) productMap[it.productId] = { name: it.name, qty: 0, total: 0 };
+    productMap[it.productId].qty += +it.qty || 0;
+    productMap[it.productId].total += (+it.qty||0) * (+it.price||0);
+  }));
+  const topProducts = Object.values(productMap).sort((a,b) => b.total - a.total).slice(0, 10);
+
+  // Salesman-wise
+  const salesmanMap = {};
+  filtered.forEach(s => {
+    if (!salesmanMap[s.salesmanId]) salesmanMap[s.salesmanId] = { name: s.salesmanName, count: 0, total: 0 };
+    salesmanMap[s.salesmanId].count++;
+    salesmanMap[s.salesmanId].total += +s.total || 0;
+  });
+  const topSalesmen = Object.values(salesmanMap).sort((a,b) => b.total - a.total);
+
+  el.innerHTML = `
+    <div class="p-3 space-y-3">
+      <div class="flex gap-2 overflow-x-auto">
+        ${Object.entries(periods).map(([k,v]) => `
+          <button data-period="${k}" class="period-btn flex-shrink-0 px-4 py-2.5 rounded-xl text-xs font-semibold whitespace-nowrap ${A.reportPeriod===k?'bg-blue-600 text-white':'bg-white text-gray-600 border-2 border-gray-200'}">${v}</button>
+        `).join('')}
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div class="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+          <div class="text-[11px] text-gray-500">মোট বিক্রয়</div>
+          <div class="text-xl font-extrabold text-blue-600 mt-1">${TP.money(totalSales)}</div>
+          <div class="text-[10px] text-gray-400">${TP.bn(filtered.length)} লেনদেন</div>
+        </div>
+        <div class="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+          <div class="text-[11px] text-gray-500">আদায়</div>
+          <div class="text-xl font-extrabold text-green-600 mt-1">${TP.money(totalPaid)}</div>
+        </div>
+        <div class="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+          <div class="text-[11px] text-gray-500">বাকি</div>
+          <div class="text-xl font-extrabold text-red-600 mt-1">${TP.money(totalDue)}</div>
+        </div>
+        <div class="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+          <div class="text-[11px] text-gray-500">ডিসকাউন্ট</div>
+          <div class="text-xl font-extrabold text-orange-500 mt-1">${TP.money(totalDisc)}</div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+        <h3 class="font-bold mb-3">🏆 টপ প্রোডাক্ট</h3>
+        ${topProducts.length ? topProducts.map((p, i) => `
+          <div class="flex justify-between py-1.5 text-sm">
+            <div><span class="text-gray-400 mr-2">${TP.bn(i+1)}.</span>${TP.esc(p.name)}</div>
+            <div class="text-right">
+              <div class="font-bold text-blue-600">${TP.money(p.total)}</div>
+              <div class="text-[10px] text-gray-400">${TP.bn(p.qty)} বিক্রি</div>
+            </div>
+          </div>`).join('') : '<div class="text-gray-400 text-sm">ডেটা নেই</div>'}
+      </div>
+
+      <div class="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+        <h3 class="font-bold mb-3">👥 সেলসম্যান পারফরম্যান্স</h3>
+        ${topSalesmen.length ? topSalesmen.map((s, i) => `
+          <div class="flex justify-between py-1.5 text-sm">
+            <div><span class="text-gray-400 mr-2">${TP.bn(i+1)}.</span>${TP.esc(s.name)}</div>
+            <div class="text-right">
+              <div class="font-bold text-blue-600">${TP.money(s.total)}</div>
+              <div class="text-[10px] text-gray-400">${TP.bn(s.count)} বিক্রয়</div>
+            </div>
+          </div>`).join('') : '<div class="text-gray-400 text-sm">ডেটা নেই</div>'}
+      </div>
+    </div>`;
+
+  el.querySelectorAll('.period-btn').forEach(b => b.addEventListener('click', () => {
+    A.reportPeriod = b.dataset.period; renderReports();
+  }));
+}
+
+/* ============================================================
+   SETTINGS
+   ============================================================ */
+function renderSettings() {
+  const el = document.getElementById('page-settings');
+  const s = A.profile.shop.settings || {};
+
+  el.innerHTML = `
+    <div class="p-3 space-y-3">
+      <div class="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+        <h3 class="font-bold mb-2">🏪 শপ তথ্য</h3>
+        <div class="flex items-center gap-2 mb-3">
+          <span class="text-xs text-gray-500">Shop ID:</span>
+          <span class="font-mono font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded text-sm">${TP.esc(A.shopId)}</span>
+          <button id="copyShopId" class="text-xs text-gray-500 underline">কপি</button>
+        </div>
+        <div class="space-y-2">
+          <input id="setShopName" value="${TP.esc(s.shopName || A.profile.shop.shopName)}" placeholder="দোকানের নাম"
+            class="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none">
+          <textarea id="setShopAddr" rows="2" placeholder="ঠিকানা"
+            class="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none">${TP.esc(s.shopAddress||'')}</textarea>
+          <input id="setShopPhone" value="${TP.esc(s.shopPhone||'')}" placeholder="মোবাইল"
+            class="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none">
+          <button id="saveSettings" class="w-full bg-blue-600 text-white py-3 rounded-xl font-semibold">সেভ করুন</button>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+        <h3 class="font-bold mb-2">👤 অ্যাকাউন্ট</h3>
+        <div class="text-sm space-y-1">
+          <div class="flex justify-between"><span class="text-gray-500">নাম</span><b>${TP.esc(A.profile.name)}</b></div>
+          <div class="flex justify-between"><span class="text-gray-500">ইউজারনেম</span><b class="font-mono">${TP.esc(A.profile.username)}</b></div>
+          <div class="flex justify-between"><span class="text-gray-500">রোল</span><b>অ্যাডমিন</b></div>
+          ${A.profile.shop.phone ? `<div class="flex justify-between"><span class="text-gray-500">মোবাইল</span><b>${TP.bn(A.profile.shop.phone)}</b></div>` : ''}
+        </div>
+      </div>
+
+      <div class="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+        <h3 class="font-bold mb-3">🔐 পাসওয়ার্ড পরিবর্তন</h3>
+        <input id="oldPass" type="password" placeholder="পুরনো পাসওয়ার্ড" class="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl mb-2 focus:border-blue-500 focus:outline-none">
+        <input id="newPass" type="password" placeholder="নতুন পাসওয়ার্ড (কমপক্ষে ৬)" class="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl mb-2 focus:border-blue-500 focus:outline-none">
+        <input id="newPass2" type="password" placeholder="আবার লিখুন" class="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl mb-3 focus:border-blue-500 focus:outline-none">
+        <button id="changePass" class="w-full bg-gray-800 text-white py-3 rounded-xl font-semibold">পরিবর্তন করুন</button>
+      </div>
+
+      <div class="bg-blue-50 border border-blue-200 rounded-2xl p-4 text-xs text-gray-600 leading-relaxed">
+        <p class="font-bold text-blue-600 mb-1">ℹ️ TextilePOS (Firebase)</p>
+        <p>Multi-tenant ক্লাউড POS — সব ডেটা Firebase-এ সুরক্ষিত। যেকোনো ডিভাইস থেকে লগইন করলেই রিয়েল-টাইম সিঙ্ক।</p>
+      </div>
+    </div>`;
+
+  document.getElementById('copyShopId').addEventListener('click', async () => {
+    await TP.copyText(A.shopId); TP.toast('কপি হয়েছে', 'success');
+  });
+  document.getElementById('saveSettings').addEventListener('click', async () => {
+    const settings = {
+      shopName: document.getElementById('setShopName').value.trim() || A.profile.shop.shopName,
+      shopAddress: document.getElementById('setShopAddr').value.trim(),
+      shopPhone: document.getElementById('setShopPhone').value.trim(),
+    };
+    try {
+      await TP.db.collection('shops').doc(A.shopId).update({ settings, shopName: settings.shopName });
+      TP.toast('সেভ হয়েছে', 'success');
+    } catch (e) { TP.toast(e.message, 'error'); }
+  });
+  document.getElementById('changePass').addEventListener('click', async () => {
+    const oldP = document.getElementById('oldPass').value;
+    const np = document.getElementById('newPass').value;
+    const np2 = document.getElementById('newPass2').value;
+    if (np !== np2) { TP.toast('পাসওয়ার্ড মিলছে না', 'error'); return; }
+    if (np.length < 6) { TP.toast('কমপক্ষে ৬ অক্ষর', 'error'); return; }
+    try {
+      const cred = firebase.auth.EmailAuthProvider.credential(TP.auth.currentUser.email, oldP);
+      await TP.auth.currentUser.reauthenticateWithCredential(cred);
+      await TP.auth.currentUser.updatePassword(np);
+      TP.toast('সফল!', 'success');
+      document.getElementById('oldPass').value = '';
+      document.getElementById('newPass').value = '';
+      document.getElementById('newPass2').value = '';
+    } catch (err) {
+      let msg = 'পরিবর্তন ব্যর্থ';
+      if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') msg = 'পুরনো পাসওয়ার্ড ভুল';
+      if (err.code === 'auth/weak-password') msg = 'পাসওয়ার্ড দুর্বল';
+      TP.toast(msg, 'error');
+    }
+  });
+}
+
+window.goTo = goTo;
+</script>
+</body>
+</html>
