@@ -150,207 +150,233 @@
 <script>
 /* ═══════════════════════════════════════════════
    PAYMENT DEVICE
+   Wrapped in IIFE to avoid variable collisions
+   with common.js ($, bn, esc etc.)
    ═══════════════════════════════════════════════ */
-const P = {
-  sessionId: null,
-  session: null,
-  shopId: null,
-  sessionUnsub: null,
-  requestsUnsub: null,
-  activeReqRef: null,
-  pingTimer: null,
-  audioCtx: null,
-};
+(function() {
+  'use strict';
 
-const $ = s => document.querySelector(s);
+  const P = {
+    sessionId: null,
+    session: null,
+    shopId: null,
+    sessionUnsub: null,
+    requestsUnsub: null,
+    activeReqRef: null,
+    pingTimer: null,
+    audioCtx: null,
+  };
 
-/* ── Beep using Web Audio ── */
-function beep(freq = 900, dur = 120) {
-  try {
-    if (!P.audioCtx) P.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    if (P.audioCtx.state === 'suspended') P.audioCtx.resume();
-    const osc = P.audioCtx.createOscillator();
-    const gain = P.audioCtx.createGain();
-    osc.frequency.value = freq;
-    osc.type = 'sine';
-    osc.connect(gain);
-    gain.connect(P.audioCtx.destination);
-    gain.gain.value = 0.2;
-    osc.start();
-    osc.stop(P.audioCtx.currentTime + dur / 1000);
-  } catch (e) { /* ignore */ }
-}
+  const q = s => document.querySelector(s);
 
-/* ── View management ── */
-function showView(id) {
-  ['loadingView','errorView','endedView','idleView','payView','successView'].forEach(v => {
-    const el = document.getElementById(v);
-    if (el) el.classList.toggle('hide', v !== id);
-  });
-  window.scrollTo({ top: 0 });
-}
-
-function showError(title, msg) {
-  $('#errTitle').textContent = title;
-  $('#errMsg').textContent = msg;
-  showView('errorView');
-}
-
-/* ═══════════ INIT ═══════════ */
-(async function init() {
-  const params = new URLSearchParams(location.search);
-  P.sessionId = params.get('s');
-
-  if (!P.sessionId) {
-    return showError('সেশন আইডি নেই', 'QR স্ক্যান করে আবার চেষ্টা করুন অথবা Admin/Salesman এর কাছ থেকে নতুন QR নিন।');
+  function beep(freq = 900, dur = 120) {
+    try {
+      if (!P.audioCtx) P.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (P.audioCtx.state === 'suspended') P.audioCtx.resume();
+      const osc = P.audioCtx.createOscillator();
+      const gain = P.audioCtx.createGain();
+      osc.frequency.value = freq;
+      osc.type = 'sine';
+      osc.connect(gain);
+      gain.connect(P.audioCtx.destination);
+      gain.gain.value = 0.2;
+      osc.start();
+      osc.stop(P.audioCtx.currentTime + dur / 1000);
+    } catch (e) { /* ignore */ }
   }
 
-  try {
-    const ref = TP.db.collection('paymentSessions').doc(P.sessionId);
-    const doc = await ref.get();
-    if (!doc.exists) {
-      return showError('সেশন খুঁজে পাওয়া যায়নি', 'সম্ভবত সেশনের মেয়াদ শেষ হয়েছে অথবা ডিসকানেক্ট করা হয়েছে।');
+  function showView(id) {
+    ['loadingView','errorView','endedView','idleView','payView','successView'].forEach(v => {
+      const el = document.getElementById(v);
+      if (el) el.classList.toggle('hide', v !== id);
+    });
+    window.scrollTo({ top: 0 });
+  }
+
+  function showError(title, msg) {
+    q('#errTitle').textContent = title;
+    q('#errMsg').textContent = msg;
+    showView('errorView');
+  }
+
+  /* ── INIT ── */
+  (async function init() {
+    const params = new URLSearchParams(location.search);
+    P.sessionId = params.get('s');
+
+    console.log('[payment.html] Session:', P.sessionId);
+    console.log('[payment.html] TP:', typeof TP);
+
+    if (!P.sessionId) {
+      return showError(
+        'সেশন আইডি নেই',
+        'URL এ ?s=... parameter নেই। Admin/Salesman Settings থেকে QR তৈরি করে স্ক্যান করুন।'
+      );
     }
 
-    P.session = doc.data();
-    P.shopId = P.session.shopId;
+    if (typeof TP === 'undefined' || !TP.db) {
+      return showError(
+        'Firebase লোড হয়নি',
+        'common.js বা Firebase SDK লোড করতে ব্যর্থ। ইন্টারনেট চেক করে refresh করুন।'
+      );
+    }
 
-    // Mark as connected
-    await ref.update({
-      deviceConnected: true,
-      lastPing: TP.FV.serverTimestamp(),
-    });
+    try {
+      const ref = TP.db.collection('paymentSessions').doc(P.sessionId);
+      const doc = await ref.get();
 
-    // Fill idle view
-    $('#idleShopName').textContent = P.session.shopName || 'দোকান';
-    $('#idleSalesmanName').textContent = P.session.salesmanName || 'অ্যাডমিন';
-    $('#idleUPI').textContent = P.session.upiId || '—';
-
-    showView('idleView');
-
-    // Watch for session deletion (disconnect)
-    P.sessionUnsub = ref.onSnapshot(snap => {
-      if (!snap.exists) {
-        cleanup();
-        showView('endedView');
+      if (!doc.exists) {
+        return showError(
+          'সেশন খুঁজে পাওয়া যায়নি',
+          'সম্ভবত সেশন মেয়াদ শেষ হয়েছে বা Admin/Salesman ডিসকানেক্ট করেছেন। নতুন QR তৈরি করে স্ক্যান করুন।'
+        );
       }
-    });
 
-    // Watch for new payment requests
-    P.requestsUnsub = ref.collection('requests')
-      .where('status', '==', 'pending')
-      .onSnapshot(snap => {
-        snap.docChanges().forEach(change => {
-          if (change.type !== 'added') return;
-          const data = change.doc.data();
-          showPaymentRequest(change.doc.ref, data);
+      P.session = doc.data();
+      P.shopId = P.session.shopId;
+
+      // Update connected status
+      try {
+        await ref.update({
+          deviceConnected: true,
+          lastPing: TP.FV.serverTimestamp(),
         });
-      }, err => console.error('requests listener:', err));
+      } catch (e) {
+        console.warn('[payment.html] update failed:', e);
+      }
 
-    // Ping every 30 sec
-    P.pingTimer = setInterval(() => {
-      ref.update({ lastPing: TP.FV.serverTimestamp() }).catch(() => {});
-    }, 30000);
+      q('#idleShopName').textContent = P.session.shopName || 'দোকান';
+      q('#idleSalesmanName').textContent = P.session.salesmanName || 'অ্যাডমিন';
+      q('#idleUPI').textContent = P.session.upiId || '—';
 
-  } catch (e) {
-    console.error(e);
-    showError('কানেকশন সমস্যা', e.message || 'Firebase এ যোগাযোগ করা যাচ্ছে না।');
-  }
-})();
-
-/* ═══════════ SHOW PAYMENT REQUEST ═══════════ */
-async function showPaymentRequest(reqRef, data) {
-  P.activeReqRef = reqRef;
-  const amount = +data.amount || 0;
-
-  $('#payShopName').textContent = P.session.shopName || 'দোকান';
-  $('#payAmount').textContent = TP.money(amount);
-  $('#payInvoice').textContent = data.invoiceNo || '';
-  $('#payUPI').textContent = P.session.upiId || '';
-
-  // Generate UPI QR
-  try {
-    const upiURL = TP.buildUPIURL({
-      upiId: P.session.upiId,
-      name: P.session.upiName || P.session.shopName,
-      amount,
-      note: data.invoiceNo || '',
-    });
-    const qr = await TP.generateQRDataURL(upiURL, 600);
-    $('#payQR').src = qr;
-  } catch (e) {
-    console.error(e);
-    $('#payQR').src = '';
-  }
-
-  // Sound + vibrate to alert
-  beep(750, 100);
-  try { navigator.vibrate && navigator.vibrate([80, 60, 80]); } catch (e) {}
-
-  showView('payView');
-}
-
-/* ═══════════ CONFIRM BUTTON ═══════════ */
-document.getElementById('payConfirm').addEventListener('click', async () => {
-  if (!P.activeReqRef) return;
-  const btn = document.getElementById('payConfirm');
-  btn.disabled = true;
-  btn.textContent = 'কনফার্ম হচ্ছে...';
-
-  try {
-    const snap = await P.activeReqRef.get();
-    if (!snap.exists) {
-      // Request gone (already processed?) — go back to idle
-      P.activeReqRef = null;
       showView('idleView');
-      return;
+
+      // Watch for session deletion
+      P.sessionUnsub = ref.onSnapshot(snap => {
+        if (!snap.exists) {
+          cleanup();
+          showView('endedView');
+        }
+      }, err => console.error('[payment.html] session watch:', err));
+
+      // Watch for new payment requests
+      P.requestsUnsub = ref.collection('requests')
+        .where('status', '==', 'pending')
+        .onSnapshot(snap => {
+          snap.docChanges().forEach(change => {
+            if (change.type !== 'added') return;
+            const data = change.doc.data();
+            showPaymentRequest(change.doc.ref, data);
+          });
+        }, err => console.error('[payment.html] requests listener:', err));
+
+      // Ping every 30 sec
+      P.pingTimer = setInterval(() => {
+        ref.update({ lastPing: TP.FV.serverTimestamp() }).catch(() => {});
+      }, 30000);
+
+    } catch (e) {
+      console.error('[payment.html] INIT ERROR:', e);
+      const msg = String(e.message || e).substring(0, 180);
+      showError(
+        'কানেকশন সমস্যা',
+        msg + ' | Firestore Rules এ paymentSessions allow আছে কিনা চেক করুন।'
+      );
     }
-    const amount = +snap.data().amount || 0;
+  })();
 
-    await P.activeReqRef.update({
-      status: 'paid',
-      confirmedAt: TP.FV.serverTimestamp(),
-    });
+  async function showPaymentRequest(reqRef, data) {
+    P.activeReqRef = reqRef;
+    const amount = +data.amount || 0;
 
-    $('#successAmount').textContent = TP.money(amount);
-    beep(1100, 150);
-    try { navigator.vibrate && navigator.vibrate(150); } catch (e) {}
+    q('#payShopName').textContent = P.session.shopName || 'দোকান';
+    q('#payAmount').textContent = TP.money(amount);
+    q('#payInvoice').textContent = data.invoiceNo || '';
+    q('#payUPI').textContent = P.session.upiId || '';
 
-    showView('successView');
-    P.activeReqRef = null;
+    try {
+      const upiURL = TP.buildUPIURL({
+        upiId: P.session.upiId,
+        name: P.session.upiName || P.session.shopName,
+        amount,
+        note: data.invoiceNo || '',
+      });
+      const qr = await TP.generateQRDataURL(upiURL, 600);
+      q('#payQR').src = qr;
+    } catch (e) {
+      console.error('[payment.html] QR error:', e);
+      q('#payQR').src = '';
+    }
 
-    setTimeout(() => {
-      if (!$('#successView').classList.contains('hide')) showView('idleView');
-    }, 2500);
-  } catch (e) {
-    console.error(e);
-    btn.disabled = false;
-    btn.textContent = '✓ পেমেন্ট পেয়েছি';
+    beep(750, 100);
+    try { navigator.vibrate && navigator.vibrate([80, 60, 80]); } catch (e) {}
+
+    showView('payView');
   }
-});
 
-/* ═══════════ CANCEL BUTTON ═══════════ */
-document.getElementById('payCancel').addEventListener('click', async () => {
-  if (!P.activeReqRef) return;
-  if (!confirm('পেমেন্ট বাতিল করবেন?')) return;
-  try {
-    await P.activeReqRef.update({
-      status: 'cancelled',
-      cancelledAt: TP.FV.serverTimestamp(),
-    });
-  } catch (e) { console.error(e); }
-  P.activeReqRef = null;
-  showView('idleView');
-});
+  /* ── CONFIRM ── */
+  document.getElementById('payConfirm').addEventListener('click', async () => {
+    if (!P.activeReqRef) return;
+    const btn = document.getElementById('payConfirm');
+    btn.disabled = true;
+    btn.textContent = 'কনফার্ম হচ্ছে...';
 
-/* ═══════════ CLEANUP ═══════════ */
-function cleanup() {
-  if (P.sessionUnsub) { try { P.sessionUnsub(); } catch (e) {} P.sessionUnsub = null; }
-  if (P.requestsUnsub) { try { P.requestsUnsub(); } catch (e) {} P.requestsUnsub = null; }
-  if (P.pingTimer) { clearInterval(P.pingTimer); P.pingTimer = null; }
-}
+    try {
+      const snap = await P.activeReqRef.get();
+      if (!snap.exists) {
+        P.activeReqRef = null;
+        showView('idleView');
+        return;
+      }
+      const amount = +snap.data().amount || 0;
 
-window.addEventListener('beforeunload', cleanup);
+      await P.activeReqRef.update({
+        status: 'paid',
+        confirmedAt: TP.FV.serverTimestamp(),
+      });
+
+      q('#successAmount').textContent = TP.money(amount);
+      beep(1100, 150);
+      try { navigator.vibrate && navigator.vibrate(150); } catch (e) {}
+
+      showView('successView');
+      P.activeReqRef = null;
+
+      setTimeout(() => {
+        if (!document.getElementById('successView').classList.contains('hide')) showView('idleView');
+        btn.disabled = false;
+        btn.textContent = '✓ পেমেন্ট পেয়েছি';
+      }, 2500);
+    } catch (e) {
+      console.error('[payment.html] confirm error:', e);
+      btn.disabled = false;
+      btn.textContent = '✓ পেমেন্ট পেয়েছি';
+    }
+  });
+
+  /* ── CANCEL ── */
+  document.getElementById('payCancel').addEventListener('click', async () => {
+    if (!P.activeReqRef) return;
+    if (!confirm('পেমেন্ট বাতিল করবেন?')) return;
+    try {
+      await P.activeReqRef.update({
+        status: 'cancelled',
+        cancelledAt: TP.FV.serverTimestamp(),
+      });
+    } catch (e) { console.error(e); }
+    P.activeReqRef = null;
+    showView('idleView');
+  });
+
+  function cleanup() {
+    if (P.sessionUnsub) { try { P.sessionUnsub(); } catch (e) {} P.sessionUnsub = null; }
+    if (P.requestsUnsub) { try { P.requestsUnsub(); } catch (e) {} P.requestsUnsub = null; }
+    if (P.pingTimer) { clearInterval(P.pingTimer); P.pingTimer = null; }
+  }
+
+  window.addEventListener('beforeunload', cleanup);
+
+})();
 </script>
 </body>
 </html>
