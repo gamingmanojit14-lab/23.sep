@@ -1,6 +1,6 @@
 /* ============================================================
    TextilePOS — Common Utilities & Firebase Init
-   Supports: Real Gmail registration + BN/IN phone numbers
+   + Auto Barcode Generator
    ============================================================ */
 
 if (!window.FIREBASE_CONFIG || window.FIREBASE_CONFIG.apiKey === 'PASTE_YOUR_API_KEY_HERE') {
@@ -50,16 +50,27 @@ const copyText = t => {
   return Promise.resolve();
 };
 
-/* ---------- Email (Gmail) ---------- */
-function normalizeEmail(raw) {
-  return String(raw || '').trim().toLowerCase();
+/* ---------- Barcode Generator ----------
+   Format: YYMMDD + 6 random digits = 12-digit numeric barcode
+   Example: 260923 + 123456 = "260923123456"
+   Scanners usually prefer pure numeric codes
+------------------------------------------------ */
+function generateBarcode() {
+  const d = new Date();
+  const yy = String(d.getFullYear()).slice(-2);
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  const rand = String(Math.floor(Math.random() * 1000000)).padStart(6, '0');
+  return yy + mm + dd + rand;
 }
+
+/* ---------- Email ---------- */
+function normalizeEmail(raw) { return String(raw || '').trim().toLowerCase(); }
 function isValidGmail(email) {
-  // Format: name.title.number@gmail.com (any valid gmail)
   return /^[a-z0-9][a-z0-9._%+-]{2,}@gmail\.com$/i.test(String(email || '').trim());
 }
 
-/* ---------- Phone (Bangladesh + India support) ---------- */
+/* ---------- Phone ---------- */
 function normalizePhone(raw) {
   let p = String(raw || '').replace(/\D/g, '');
   if (p.startsWith('880') && p.length === 13) p = '0' + p.slice(3);
@@ -69,9 +80,9 @@ function normalizePhone(raw) {
 }
 function isValidPhone(p) {
   if (!p) return false;
-  if (/^01[3-9]\d{8}$/.test(p)) return true;   // BD
-  if (/^[6-9]\d{9}$/.test(p)) return true;      // IN
-  if (/^\d{10,13}$/.test(p)) return true;       // Fallback
+  if (/^01[3-9]\d{8}$/.test(p)) return true;
+  if (/^[6-9]\d{9}$/.test(p)) return true;
+  if (/^\d{10,13}$/.test(p)) return true;
   return false;
 }
 
@@ -83,7 +94,6 @@ function generateShopId() {
   return 'SHOP-' + s;
 }
 const shopIdKey = id => String(id || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-// Salesman email (admin creates them without real email)
 const salesmanEmail = (sid, u) => `s-${shopIdKey(sid)}-${String(u||'').toLowerCase().replace(/[^a-z0-9]/g,'')}@textilepos-user.app`;
 
 /* ---------- Toast ---------- */
@@ -169,6 +179,6 @@ async function requireAuth(requiredRole) {
 
 /* ---------- Expose ---------- */
 window.TP = { auth, db, FV, $, $$, bn, money, esc, todayKey, fmtDate, fmtDateOnly, isToday, uid, copyText,
-              normalizeEmail, isValidGmail, normalizePhone, isValidPhone,
+              generateBarcode, normalizeEmail, isValidGmail, normalizePhone, isValidPhone,
               generateShopId, salesmanEmail,
               toast, askConfirm, requireAuth };
