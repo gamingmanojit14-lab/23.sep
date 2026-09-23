@@ -1,15 +1,15 @@
 <!DOCTYPE html>
-<html lang="bn">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>সেলসম্যান — TextilePOS</title>
+<title>Salesman — TextilePOS</title>
 <script src="https://cdn.tailwindcss.com"></script>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <style>
   *{ -webkit-tap-highlight-color:transparent; }
-  body{ font-family:'Noto Sans Bengali',system-ui,sans-serif; }
+  body{ font-family:'Inter',system-ui,sans-serif; }
   input,select,textarea,button{ font-family:inherit; }
   @keyframes slideUp{from{transform:translateY(100%)}to{transform:none}}
   .slide-up{animation:slideUp .25s cubic-bezier(.2,.9,.3,1)}
@@ -29,7 +29,7 @@
 <div id="loadingScreen" class="fixed inset-0 bg-green-600 flex items-center justify-center z-[999]">
   <div class="text-white text-center">
     <div class="text-6xl mb-3">🧵</div>
-    <div class="text-lg font-bold">লোড হচ্ছে...</div>
+    <div class="text-lg font-bold">Loading...</div>
   </div>
 </div>
 
@@ -41,7 +41,7 @@
     <h1 id="pageTitle" class="flex-1 text-lg font-bold ml-1 truncate">POS</h1>
     <div class="text-right leading-tight pr-2">
       <div id="userName" class="text-sm font-semibold truncate max-w-[120px]"></div>
-      <div class="text-[10px] opacity-80">সেলসম্যান</div>
+      <div class="text-[10px] opacity-80">Salesman</div>
     </div>
   </header>
 
@@ -68,9 +68,9 @@
 
   <div id="cartBar" class="hide fixed bottom-[68px] inset-x-0 z-30 px-3 pointer-events-none">
     <button id="openCartBtn" class="w-full pointer-events-auto bg-green-600 text-white rounded-2xl py-3.5 px-5 flex items-center justify-between shadow-2xl active:scale-[.98] transition">
-      <span class="text-sm font-semibold">🛒 কার্ট: <span id="cartCount">০</span></span>
-      <span class="font-extrabold text-lg" id="cartTotal">৳০</span>
-      <span class="text-sm font-semibold bg-white/20 px-3 py-1 rounded-lg">চেকআউট →</span>
+      <span class="text-sm font-semibold">🛒 Cart: <span id="cartCount">0</span></span>
+      <span class="font-extrabold text-lg" id="cartTotal">₹0</span>
+      <span class="text-sm font-semibold bg-white/20 px-3 py-1 rounded-lg">Checkout →</span>
     </button>
   </div>
 
@@ -80,7 +80,7 @@
 <div id="cartModal" class="hide fixed inset-0 z-[80] bg-black/60 items-end sm:items-center justify-center">
   <div class="bg-white w-full sm:max-w-lg rounded-t-3xl sm:rounded-3xl max-h-[94vh] flex flex-col slide-up">
     <div class="p-4 border-b flex items-center justify-between flex-shrink-0">
-      <h2 class="font-bold text-lg">🛒 কার্ট</h2>
+      <h2 class="font-bold text-lg">🛒 Cart</h2>
       <button data-close="cartModal" class="w-9 h-9 rounded-lg hover:bg-gray-100 text-2xl leading-none">×</button>
     </div>
     <div class="flex-1 overflow-y-auto p-4 space-y-2.5" id="cartItems"></div>
@@ -91,14 +91,14 @@
 <div id="invoiceModal" class="hide fixed inset-0 z-[85] bg-black/70 items-center justify-center p-2">
   <div class="bg-white w-full max-w-2xl rounded-2xl max-h-[96vh] flex flex-col fade-in">
     <div class="p-3 border-b flex items-center justify-between">
-      <h2 class="font-bold">🧾 ইনভয়েস</h2>
+      <h2 class="font-bold">🧾 Invoice</h2>
       <button data-close="invoiceModal" class="w-9 h-9 rounded-lg hover:bg-gray-100 text-2xl leading-none">×</button>
     </div>
     <div class="flex-1 overflow-y-auto p-4" id="invoiceBody"></div>
     <div class="p-3 border-t flex gap-2">
-      <button id="printThermal" class="flex-1 bg-gray-700 text-white py-3 rounded-xl font-semibold text-sm active:scale-95">🖨 থার্মাল</button>
+      <button id="printThermal" class="flex-1 bg-gray-700 text-white py-3 rounded-xl font-semibold text-sm active:scale-95">🖨 Thermal</button>
       <button id="printA4" class="flex-1 bg-green-600 text-white py-3 rounded-xl font-semibold text-sm active:scale-95">🖨 A4</button>
-      <button data-close="invoiceModal" class="flex-1 bg-gray-200 py-3 rounded-xl font-semibold text-sm active:scale-95">বন্ধ</button>
+      <button data-close="invoiceModal" class="flex-1 bg-gray-200 py-3 rounded-xl font-semibold text-sm active:scale-95">Close</button>
     </div>
   </div>
 </div>
@@ -120,13 +120,10 @@ const S = {
   products: [], customers: [], sales: [],
   cart: [], saleType: 'retail', posSearch: '', posCategory: '',
   custMode: 'walkin', custId: '',
-  discount: 0, paid: null, payMethod: 'cash',
   currentInvoice: null, currentPage: 'pos',
   unsubs: [],
-  // Remote scanner
   scannerSessionId: null,
   scannerUnsub: null,
-  // Remote payment
   paymentSessionId: null,
 };
 
@@ -155,7 +152,7 @@ function renderShell() {
   document.getElementById('userName').textContent = S.profile.name;
   document.getElementById('drawerShop').textContent = S.profile.shop.shopName;
   document.getElementById('drawerShopId').textContent = S.shopId;
-  document.getElementById('drawerUser').textContent = S.profile.name + ' • সেলসম্যান';
+  document.getElementById('drawerUser').textContent = S.profile.name + ' · Salesman';
   updateBottomNav();
 }
 
@@ -185,7 +182,7 @@ function setupListeners() {
   }));
 }
 
-const PAGE_TITLES = { pos: 'বিক্রয় (POS)', 'my-sales': 'আমার বিক্রয়', products: 'প্রোডাক্ট', customers: 'কাস্টমার', settings: 'সেটিংস' };
+const PAGE_TITLES = { pos: 'Point of Sale', 'my-sales': 'My Sales', products: 'Products', customers: 'Customers', settings: 'Settings' };
 
 function goTo(page) {
   S.currentPage = page;
@@ -212,9 +209,9 @@ function renderCurrent() {
 function updateBottomNav() {
   const items = [
     { p: 'pos', i: '🛒', l: 'POS' },
-    { p: 'my-sales', i: '🧾', l: 'বিক্রয়' },
-    { p: 'products', i: '📦', l: 'প্রোডাক্ট' },
-    { p: '__menu', i: '☰', l: 'মেনু' },
+    { p: 'my-sales', i: '🧾', l: 'Sales' },
+    { p: 'products', i: '📦', l: 'Products' },
+    { p: '__menu', i: '☰', l: 'Menu' },
   ];
   document.getElementById('bottomNav').innerHTML = items.map(it => `
     <button data-nav="${it.p}" class="flex-1 flex flex-col items-center justify-center gap-0.5 text-[11px] font-medium transition
@@ -242,11 +239,11 @@ document.getElementById('menuBtn').addEventListener('click', openDrawer);
 
 function buildDrawerNav() {
   const items = [
-    { p: 'pos', i: '🛒', l: 'বিক্রয় (POS)' },
-    { p: 'my-sales', i: '🧾', l: 'আমার বিক্রয়' },
-    { p: 'products', i: '📦', l: 'প্রোডাক্ট' },
-    { p: 'customers', i: '🧑‍🤝‍🧑', l: 'কাস্টমার' },
-    { p: 'settings', i: '⚙️', l: 'সেটিংস' },
+    { p: 'pos', i: '🛒', l: 'Point of Sale' },
+    { p: 'my-sales', i: '🧾', l: 'My Sales' },
+    { p: 'products', i: '📦', l: 'Products' },
+    { p: 'customers', i: '🧑‍🤝‍🧑', l: 'Customers' },
+    { p: 'settings', i: '⚙️', l: 'Settings' },
   ];
   document.getElementById('drawerNav').innerHTML = items.map(it => `
     <button data-dnav="${it.p}" class="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-left font-medium
@@ -255,12 +252,12 @@ function buildDrawerNav() {
     </button>`).join('') + `
     <div class="border-t my-2"></div>
     <button id="drawerLogout" class="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-left font-medium text-red-600 hover:bg-red-50">
-      <span class="text-xl">🚪</span><span>লগআউট</span>
+      <span class="text-xl">🚪</span><span>Logout</span>
     </button>`;
   document.querySelectorAll('[data-dnav]').forEach(b => b.addEventListener('click', () => goTo(b.dataset.dnav)));
   document.getElementById('drawerLogout').addEventListener('click', async () => {
     closeDrawer();
-    if (!await TP.askConfirm('লগআউট করতে চান?')) return;
+    if (!await TP.askConfirm('Logout from this account?')) return;
     if (S.scannerSessionId) { try { await TP.deleteScannerSession(S.scannerSessionId); } catch {} S.scannerSessionId = null; localStorage.removeItem('tp_scanner_session'); }
     if (S.paymentSessionId) { try { await TP.deletePaymentSession(S.paymentSessionId); } catch {} S.paymentSessionId = null; localStorage.removeItem('tp_payment_session'); }
     await TP.auth.signOut();
@@ -276,26 +273,26 @@ function renderPOS() {
   el.innerHTML = `
     <div class="p-3 space-y-3">
       <div class="flex gap-2">
-        <button id="typeRetail" class="flex-1 py-3 rounded-xl font-semibold text-sm transition">🏪 রিটেল</button>
-        <button id="typeWhole" class="flex-1 py-3 rounded-xl font-semibold text-sm transition">🏭 হোলসেল</button>
+        <button id="typeRetail" class="flex-1 py-3 rounded-xl font-semibold text-sm transition">🏪 Retail</button>
+        <button id="typeWhole" class="flex-1 py-3 rounded-xl font-semibold text-sm transition">🏭 Wholesale</button>
       </div>
 
       <div class="flex gap-2">
         <div class="relative flex-1 scan-pulse rounded-xl">
           <input id="barcodeInput" type="text" inputmode="numeric" autocomplete="off"
-            placeholder="📷 বারকোড স্ক্যান..."
+            placeholder="📷 Scan barcode or type..."
             class="w-full px-4 py-4 rounded-xl border-2 border-dashed border-green-500 bg-green-50 focus:border-green-700 focus:bg-white focus:outline-none text-base font-mono pr-12">
           <div class="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] bg-green-600 text-white px-2 py-1 rounded font-bold pointer-events-none">SCAN</div>
         </div>
-        <button id="qrScanBtn" class="px-4 rounded-xl bg-green-600 text-white font-bold text-2xl active:scale-95 transition" title="QR স্ক্যান">📱</button>
+        <button id="qrScanBtn" class="px-4 rounded-xl bg-green-600 text-white font-bold text-2xl active:scale-95 transition" title="QR Scan">📱</button>
       </div>
 
-      <input id="posSearch" type="search" placeholder="🔍 নাম দিয়ে খুঁজুন..." value="${TP.esc(S.posSearch)}"
+      <input id="posSearch" type="search" placeholder="🔍 Search product by name..." value="${TP.esc(S.posSearch)}"
         class="w-full px-4 py-3.5 rounded-xl border-2 border-gray-200 bg-white focus:border-green-500 focus:outline-none">
 
       ${cats.length ? `
       <div class="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
-        <button data-cat="" class="cat-chip flex-shrink-0 px-4 py-2 rounded-full text-xs font-semibold whitespace-nowrap">সব</button>
+        <button data-cat="" class="cat-chip flex-shrink-0 px-4 py-2 rounded-full text-xs font-semibold whitespace-nowrap">All</button>
         ${cats.map(c => `<button data-cat="${TP.esc(c)}" class="cat-chip flex-shrink-0 px-4 py-2 rounded-full text-xs font-semibold whitespace-nowrap">${TP.esc(c)}</button>`).join('')}
       </div>` : ''}
 
@@ -323,8 +320,8 @@ function renderPOS() {
 function handleBarcodeScan(code) {
   if (!code) return;
   const product = S.products.find(p => String(p.barcode || '').trim() === code);
-  if (!product) { TP.toast('বারকোড পাওয়া যায়নি: ' + code, 'error'); return; }
-  if ((+product.stockQty || 0) <= 0) { TP.toast(product.name + ' — স্টক শেষ!', 'error'); return; }
+  if (!product) { TP.toast('Barcode not found: ' + code, 'error'); return; }
+  if ((+product.stockQty || 0) <= 0) { TP.toast(product.name + ' — Out of stock!', 'error'); return; }
   addToCart(product.id);
   TP.toast('✓ ' + product.name, 'success');
   const bc = document.getElementById('barcodeInput');
@@ -352,7 +349,7 @@ function renderProductGrid() {
     b.className = `cat-chip flex-shrink-0 px-4 py-2 rounded-full text-xs font-semibold whitespace-nowrap ${on ? 'bg-green-600 text-white' : 'bg-white text-gray-600 border border-gray-200'}`;
   });
   if (!list.length) {
-    g.innerHTML = `<div class="col-span-2 text-center text-gray-400 py-16"><div class="text-5xl mb-3">📦</div><div>প্রোডাক্ট নেই</div></div>`;
+    g.innerHTML = `<div class="col-span-2 text-center text-gray-400 py-16"><div class="text-5xl mb-3">📦</div><div>No products yet</div></div>`;
     return;
   }
   g.innerHTML = list.map(p => {
@@ -363,7 +360,7 @@ function renderProductGrid() {
       <div class="font-semibold text-gray-800 text-sm leading-snug line-clamp-2 min-h-[2.6rem]">${TP.esc(p.name)}</div>
       ${p.barcode ? `<div class="text-[9px] text-gray-400 font-mono truncate">#${TP.esc(p.barcode)}</div>` : ''}
       <div class="text-[11px] mt-1 font-medium ${out?'text-red-600':low?'text-orange-500':'text-gray-500'}">
-        স্টক: ${TP.bn(stock)} ${TP.esc(p.unit||'')}
+        Stock: ${stock} ${TP.esc(p.unit||'')}${out?' · out':low?' · low':''}
       </div>
       <div class="text-green-600 font-extrabold mt-1.5 text-[17px]">${TP.money(price)}</div>
     </button>`;
@@ -377,7 +374,7 @@ function addToCart(pid) {
   const price = S.saleType === 'retail' ? (+p.retailPrice||0) : (+p.wholesalePrice||0);
   const exist = S.cart.find(it => it.productId === pid);
   const inCart = exist ? exist.qty : 0;
-  if (inCart + 1 > (+p.stockQty||0)) { TP.toast('স্টক শেষ!', 'error'); return; }
+  if (inCart + 1 > (+p.stockQty||0)) { TP.toast('Out of stock!', 'error'); return; }
   if (exist) exist.qty++;
   else S.cart.push({ productId: pid, name: p.name, unit: p.unit||'', price, qty: 1 });
   updateCartBar();
@@ -390,31 +387,31 @@ function updateCartBar() {
   const total = S.cart.reduce((a, it) => a + it.qty * it.price, 0);
   if (count === 0 || S.currentPage !== 'pos') { bar.classList.add('hide'); return; }
   bar.classList.remove('hide');
-  document.getElementById('cartCount').textContent = TP.bn(count);
+  document.getElementById('cartCount').textContent = count;
   document.getElementById('cartTotal').textContent = TP.money(total);
 }
 
 document.getElementById('openCartBtn').addEventListener('click', openCart);
 
 function openCart() {
-  if (!S.cart.length) { TP.toast('কার্ট খালি', 'warn'); return; }
-  S.discount = 0; S.paid = null; S.custMode = 'walkin'; S.custId = '';
+  if (!S.cart.length) { TP.toast('Cart is empty', 'warn'); return; }
+  S.custMode = 'walkin'; S.custId = '';
   renderCartItems(); renderCartCheckout(); openModal('cartModal');
 }
 
 function renderCartItems() {
   const el = document.getElementById('cartItems');
   if (!el) return;
-  if (!S.cart.length) { el.innerHTML = `<div class="text-center text-gray-400 py-10">কার্ট খালি</div>`; return; }
+  if (!S.cart.length) { el.innerHTML = `<div class="text-center text-gray-400 py-10">Cart is empty</div>`; return; }
   el.innerHTML = S.cart.map((it, i) => `
     <div class="flex items-center gap-2 bg-gray-50 rounded-xl p-3">
       <div class="flex-1 min-w-0">
         <div class="font-semibold text-sm truncate">${TP.esc(it.name)}</div>
-        <div class="text-xs text-gray-500 mt-0.5">${TP.money(it.price)} × ${TP.bn(it.qty)} ${TP.esc(it.unit)} = <b>${TP.money(it.price*it.qty)}</b></div>
+        <div class="text-xs text-gray-500 mt-0.5">${TP.money(it.price)} × ${it.qty} ${TP.esc(it.unit)} = <b>${TP.money(it.price*it.qty)}</b></div>
       </div>
       <div class="flex items-center gap-1">
         <button data-dec="${i}" class="w-9 h-9 rounded-lg bg-white border border-gray-200 font-bold text-lg active:scale-90">−</button>
-        <span class="w-7 text-center font-bold text-sm">${TP.bn(it.qty)}</span>
+        <span class="w-7 text-center font-bold text-sm">${it.qty}</span>
         <button data-inc="${i}" class="w-9 h-9 rounded-lg bg-white border border-gray-200 font-bold text-lg active:scale-90">+</button>
         <button data-rm="${i}" class="w-9 h-9 rounded-lg bg-red-50 text-red-600 font-bold active:scale-90">✕</button>
       </div>
@@ -422,7 +419,7 @@ function renderCartItems() {
   el.querySelectorAll('[data-inc]').forEach(b => b.addEventListener('click', () => {
     const i = +b.dataset.inc, it = S.cart[i];
     const p = S.products.find(x => x.id === it.productId);
-    if (it.qty + 1 > (+p?.stockQty || 0)) { TP.toast('স্টক শেষ!', 'error'); return; }
+    if (it.qty + 1 > (+p?.stockQty || 0)) { TP.toast('Out of stock!', 'error'); return; }
     it.qty++; renderCartItems(); updateSummary();
   }));
   el.querySelectorAll('[data-dec]').forEach(b => b.addEventListener('click', () => {
@@ -447,43 +444,43 @@ function renderCartCheckout() {
   el.innerHTML = `
     <div class="space-y-3">
       <div>
-        <label class="text-xs font-bold text-gray-600 mb-2 block">কাস্টমার</label>
+        <label class="text-xs font-bold text-gray-600 mb-2 block">Customer</label>
         <div class="grid grid-cols-3 gap-2">
-          <button data-cm="walkin" class="cm-btn py-2.5 rounded-xl text-xs font-semibold transition">🚶 ওয়াক-ইন</button>
-          <button data-cm="existing" class="cm-btn py-2.5 rounded-xl text-xs font-semibold transition">👤 পুরনো</button>
-          <button data-cm="new" class="cm-btn py-2.5 rounded-xl text-xs font-semibold transition">🆕 নতুন</button>
+          <button data-cm="walkin" class="cm-btn py-2.5 rounded-xl text-xs font-semibold transition">🚶 Walk-in</button>
+          <button data-cm="existing" class="cm-btn py-2.5 rounded-xl text-xs font-semibold transition">👤 Existing</button>
+          <button data-cm="new" class="cm-btn py-2.5 rounded-xl text-xs font-semibold transition">🆕 New</button>
         </div>
         <div id="cmExtra" class="mt-2"></div>
       </div>
       <div class="grid grid-cols-2 gap-3">
-        <div><label class="text-xs font-bold text-gray-600">ডিসকাউন্ট (৳)</label>
+        <div><label class="text-xs font-bold text-gray-600">Discount (₹)</label>
           <input id="discountInput" type="number" min="0" step="1" value="0" class="no-spin w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl mt-1 focus:border-green-500 focus:outline-none"></div>
-        <div><label class="text-xs font-bold text-gray-600">পরিশোধ (৳)</label>
+        <div><label class="text-xs font-bold text-gray-600">Paid (₹)</label>
           <input id="paidInput" type="number" min="0" step="1" value="${subtotal}" class="no-spin w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl mt-1 focus:border-green-500 focus:outline-none"></div>
       </div>
       <div class="flex gap-2 flex-wrap">
-        <button data-quick="${subtotal}" class="quick-pay flex-1 min-w-[70px] bg-gray-100 py-2 rounded-lg text-xs font-semibold">সম্পূর্ণ</button>
-        <button data-quick="500" class="quick-pay flex-1 min-w-[70px] bg-gray-100 py-2 rounded-lg text-xs font-semibold">৫০০</button>
-        <button data-quick="1000" class="quick-pay flex-1 min-w-[70px] bg-gray-100 py-2 rounded-lg text-xs font-semibold">১০০০</button>
+        <button data-quick="${subtotal}" class="quick-pay flex-1 min-w-[70px] bg-gray-100 py-2 rounded-lg text-xs font-semibold">Full</button>
+        <button data-quick="500" class="quick-pay flex-1 min-w-[70px] bg-gray-100 py-2 rounded-lg text-xs font-semibold">500</button>
+        <button data-quick="1000" class="quick-pay flex-1 min-w-[70px] bg-gray-100 py-2 rounded-lg text-xs font-semibold">1000</button>
       </div>
-      <div><label class="text-xs font-bold text-gray-600">পেমেন্ট মেথড</label>
+      <div><label class="text-xs font-bold text-gray-600">Payment Method</label>
         <select id="payMethod" class="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl mt-1 focus:border-green-500 focus:outline-none">
-          <option value="cash">💵 নগদ</option>
-          <option value="bkash">📱 বিকাশ</option>
-          <option value="card">💳 কার্ড</option>
-          <option value="bank">🏦 ব্যাংক</option>
-          <option value="upi" ${hasUPI ? '' : 'disabled'}>💳 UPI QR ${hasUPI ? '' : '(সেটআপ নেই)'}</option>
-          <option value="credit">📝 বাকি</option>
+          <option value="cash">💵 Cash</option>
+          <option value="bkash">📱 bKash</option>
+          <option value="card">💳 Card</option>
+          <option value="bank">🏦 Bank</option>
+          <option value="upi" ${hasUPI ? '' : 'disabled'}>💳 UPI QR ${hasUPI ? '' : '(not set)'}</option>
+          <option value="credit">📝 Credit (Due)</option>
         </select></div>
       <div class="bg-gradient-to-br from-green-50 to-blue-50 rounded-2xl p-4 space-y-1.5 text-sm border border-green-100">
-        <div class="flex justify-between"><span class="text-gray-600">সাবটোটাল</span><span id="sumSub" class="font-medium">${TP.money(subtotal)}</span></div>
-        <div class="flex justify-between"><span class="text-gray-600">ডিসকাউন্ট</span><span id="sumDisc" class="font-medium text-orange-600">- ${TP.money(0)}</span></div>
-        <div class="flex justify-between font-extrabold text-lg text-green-600 border-t border-green-200 pt-1.5 mt-1"><span>মোট</span><span id="sumTotal">${TP.money(subtotal)}</span></div>
-        <div class="flex justify-between"><span class="text-gray-600">পরিশোধ</span><span id="sumPaid" class="font-medium text-green-600">${TP.money(subtotal)}</span></div>
-        <div class="flex justify-between font-bold text-red-600"><span>বাকি</span><span id="sumDue">${TP.money(0)}</span></div>
-        <div class="flex justify-between font-bold text-blue-600 border-t border-green-200 pt-1.5 mt-1"><span>ফেরত</span><span id="sumChange">${TP.money(0)}</span></div>
+        <div class="flex justify-between"><span class="text-gray-600">Subtotal</span><span id="sumSub" class="font-medium">${TP.money(subtotal)}</span></div>
+        <div class="flex justify-between"><span class="text-gray-600">Discount</span><span id="sumDisc" class="font-medium text-orange-600">- ${TP.money(0)}</span></div>
+        <div class="flex justify-between font-extrabold text-lg text-green-600 border-t border-green-200 pt-1.5 mt-1"><span>Total</span><span id="sumTotal">${TP.money(subtotal)}</span></div>
+        <div class="flex justify-between"><span class="text-gray-600">Paid</span><span id="sumPaid" class="font-medium text-green-600">${TP.money(subtotal)}</span></div>
+        <div class="flex justify-between font-bold text-red-600"><span>Due</span><span id="sumDue">${TP.money(0)}</span></div>
+        <div class="flex justify-between font-bold text-blue-600 border-t border-green-200 pt-1.5 mt-1"><span>Change</span><span id="sumChange">${TP.money(0)}</span></div>
       </div>
-      <button id="checkoutBtn" class="w-full bg-green-600 text-white py-4 rounded-2xl font-extrabold text-base shadow-lg active:scale-[.98] transition disabled:opacity-60">✓ বিক্রয় সম্পন্ন</button>
+      <button id="checkoutBtn" class="w-full bg-green-600 text-white py-4 rounded-2xl font-extrabold text-base shadow-lg active:scale-[.98] transition disabled:opacity-60">✓ Complete Sale</button>
     </div>`;
   el.querySelectorAll('.cm-btn').forEach(b => b.addEventListener('click', () => { S.custMode = b.dataset.cm; renderCmButtons(); renderCmExtra(); }));
   el.querySelectorAll('.quick-pay').forEach(b => b.addEventListener('click', () => {
@@ -507,14 +504,14 @@ function renderCmExtra() {
   if (!el) return;
   if (S.custMode === 'existing') {
     el.innerHTML = `<select id="custSelect" class="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:outline-none">
-      <option value="">-- কাস্টমার --</option>
-      ${S.customers.map(c => `<option value="${c.id}">${TP.esc(c.name)}${c.phone?' • '+TP.esc(c.phone):''}${(+c.due||0)>0?' (বাকি '+TP.money(c.due)+')':''}</option>`).join('')}
+      <option value="">-- Select customer --</option>
+      ${S.customers.map(c => `<option value="${c.id}">${TP.esc(c.name)}${c.phone?' · '+TP.esc(c.phone):''}${(+c.due||0)>0?' (Due '+TP.money(c.due)+')':''}</option>`).join('')}
     </select>`;
     document.getElementById('custSelect').addEventListener('change', e => S.custId = e.target.value);
   } else if (S.custMode === 'new') {
     el.innerHTML = `<div class="space-y-2 fade-in">
-      <input id="newCustName" placeholder="নাম *" class="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:outline-none">
-      <input id="newCustPhone" placeholder="মোবাইল" inputmode="tel" class="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:outline-none">
+      <input id="newCustName" placeholder="Customer name *" class="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:outline-none">
+      <input id="newCustPhone" placeholder="Mobile" inputmode="tel" class="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:outline-none">
     </div>`;
   } else el.innerHTML = '';
 }
@@ -536,7 +533,7 @@ function updateSummary() {
 }
 
 async function completeSale() {
-  if (!S.cart.length) { TP.toast('কার্ট খালি', 'error'); return; }
+  if (!S.cart.length) { TP.toast('Cart is empty', 'error'); return; }
   const subtotal = S.cart.reduce((a, it) => a + it.qty * it.price, 0);
   const discount = +((document.getElementById('discountInput')||{}).value || 0);
   const total = Math.max(0, subtotal - discount);
@@ -546,36 +543,38 @@ async function completeSale() {
   const method = (document.getElementById('payMethod')||{}).value || 'cash';
   const btn = document.getElementById('checkoutBtn');
 
-  // 💳 UPI payment flow
+  // 💳 UPI payment flow (POS-controlled)
   if (method === 'upi') {
     const st = S.profile.shop.settings || {};
-    if (!st.upiId) { TP.toast('Admin এখনো UPI ID সেট করেননি', 'error'); return; }
+    if (!st.upiId) { TP.toast('Set UPI ID in Settings first', 'error'); return; }
 
     let paidConfirm = false;
 
     // Try remote payment device first
     if (S.paymentSessionId) {
-      const oldText = btn.textContent;
-      btn.disabled = true;
-      btn.textContent = '📱 ডিভাইসে পাঠানো হচ্ছে...';
       try {
-        const result = await TP.requestRemotePayment(S.paymentSessionId, {
+        btn.disabled = true;
+        btn.textContent = '📱 Sending to device...';
+        const reqRef = await TP.createPaymentRequest(S.paymentSessionId, {
           amount: paid || total,
-          invoiceNo: 'প্রস্তাবিত',
+          invoiceNo: 'Pending',
+        });
+        const result = await showPaymentWaitModal({
+          reqRef,
+          amount: paid || total,
+          shopName: st.shopName || S.profile.shop.shopName,
         });
         if (result === 'paid') {
           paidConfirm = true;
-          TP.toast('✓ রিমোট পেমেন্ট কনফার্ম', 'success');
-        } else if (result === 'cancelled') {
-          TP.toast('ডিভাইসে বাতিল হয়েছে', 'warn');
-          btn.disabled = false; btn.textContent = oldText;
-          return;
+          TP.toast('✓ Payment confirmed', 'success');
         } else {
-          TP.toast('ডিভাইস সাড়া দেয়নি — ইন-অ্যাপ QR', 'warn');
+          TP.toast('Payment cancelled', 'warn');
+          btn.disabled = false; btn.textContent = '✓ Complete Sale';
+          return;
         }
       } catch (e) {
         console.error(e);
-        TP.toast('ডিভাইসে পাঠানো যায়নি', 'error');
+        TP.toast('Could not reach device — using in-app QR', 'warn');
       }
     }
 
@@ -585,32 +584,32 @@ async function completeSale() {
         upiId: st.upiId,
         upiName: st.upiName,
         amount: paid || total,
-        invoiceNo: 'প্রস্তাবিত',
+        invoiceNo: 'Pending',
         shopName: st.shopName || S.profile.shop.shopName,
       });
       if (payResult !== 'received') {
-        TP.toast('পেমেন্ট বাতিল', 'warn');
-        btn.disabled = false; btn.textContent = '✓ বিক্রয় সম্পন্ন';
+        TP.toast('Payment cancelled', 'warn');
+        btn.disabled = false; btn.textContent = '✓ Complete Sale';
         return;
       }
     }
   }
 
-  btn.disabled = true; btn.textContent = 'প্রসেস হচ্ছে...';
+  btn.disabled = true; btn.textContent = 'Processing...';
 
   try {
     const shopRef = TP.db.collection('shops').doc(S.shopId);
-    let customerId = null, customerName = 'ওয়াক-ইন কাস্টমার', customerPhone = '';
+    let customerId = null, customerName = 'Walk-in Customer', customerPhone = '';
     let newCustomerRef = null;
     if (S.custMode === 'existing') {
       const cid = (document.getElementById('custSelect')||{}).value || S.custId;
-      if (!cid) throw new Error('কাস্টমার নির্বাচন করুন');
+      if (!cid) throw new Error('Select a customer');
       const c = S.customers.find(x => x.id === cid);
       if (c) { customerId = c.id; customerName = c.name; customerPhone = c.phone || ''; }
     } else if (S.custMode === 'new') {
       const name = ((document.getElementById('newCustName')||{}).value || '').trim();
       const phone = ((document.getElementById('newCustPhone')||{}).value || '').trim();
-      if (!name) throw new Error('নাম দিন');
+      if (!name) throw new Error('Customer name required');
       newCustomerRef = shopRef.collection('customers').doc();
       customerId = newCustomerRef.id; customerName = name; customerPhone = phone;
     }
@@ -646,26 +645,82 @@ async function completeSale() {
     S.cart = [];
     closeModal('cartModal');
     setTimeout(() => showInvoice(sale), 200);
-    TP.toast('বিক্রয় সম্পন্ন!', 'success');
+    TP.toast('Sale completed!', 'success');
   } catch (err) {
     console.error(err);
-    TP.toast(err.message || 'বিক্রয় ব্যর্থ', 'error');
-    btn.disabled = false; btn.textContent = '✓ বিক্রয় সম্পন্ন';
+    TP.toast(err.message || 'Sale failed', 'error');
+    btn.disabled = false; btn.textContent = '✓ Complete Sale';
   }
+}
+
+/* ═══════════════════════════════════════════════
+   PAYMENT WAIT MODAL — POS-controlled
+   ═══════════════════════════════════════════════ */
+function showPaymentWaitModal({ reqRef, amount, shopName }) {
+  return new Promise(resolve => {
+    const old = document.getElementById('_payWaitModal');
+    if (old) old.remove();
+
+    const modal = document.createElement('div');
+    modal.id = '_payWaitModal';
+    modal.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;font-family:Inter,system-ui,sans-serif`;
+    modal.innerHTML = `
+      <div style="background:#fff;border-radius:24px;max-width:400px;width:100%;padding:24px;text-align:center;box-shadow:0 25px 70px rgba(0,0,0,.5)">
+        <div style="font-size:44px;margin-bottom:6px">💳</div>
+        <h3 style="font-weight:800;font-size:19px;margin:0 0 4px;color:#111">Customer is paying</h3>
+        <p style="color:#6b7280;font-size:12px;margin:0 0 14px">
+          QR is shown on the payment device — customer is scanning
+        </p>
+        <div style="background:linear-gradient(135deg,#16a34a,#2563eb);color:#fff;border-radius:16px;padding:16px;margin-bottom:12px">
+          <div style="font-size:11px;opacity:.85">Amount</div>
+          <div style="font-size:32px;font-weight:800;letter-spacing:.5px">${TP.money(amount)}</div>
+        </div>
+        <div style="background:#fef3c7;border:1px solid #fbbf24;border-radius:12px;padding:10px;font-size:12px;color:#92400e;margin-bottom:14px;text-align:left;line-height:1.5">
+          ⚠️ Check your UPI app notification and <b>confirm only when payment is received</b>
+        </div>
+        <div style="display:flex;gap:8px;flex-direction:column">
+          <button id="_payWaitConfirm" style="background:#16a34a;color:#fff;padding:16px;border:none;border-radius:14px;font-weight:800;font-size:15px;font-family:inherit;cursor:pointer;box-shadow:0 6px 18px rgba(22,163,74,.4)">
+            ✓ Payment Received
+          </button>
+          <button id="_payWaitCancel" style="background:#f3f4f6;color:#374151;padding:13px;border:none;border-radius:14px;font-weight:700;font-size:14px;font-family:inherit;cursor:pointer">
+            ✕ Cancel Payment
+          </button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+
+    document.getElementById('_payWaitConfirm').onclick = async () => {
+      const btn = document.getElementById('_payWaitConfirm');
+      btn.disabled = true; btn.textContent = 'Confirming...';
+      try {
+        await TP.confirmPaymentRequest(reqRef);
+        modal.remove();
+        resolve('paid');
+      } catch (e) {
+        console.error(e);
+        btn.disabled = false; btn.textContent = '✓ Payment Received';
+      }
+    };
+    document.getElementById('_payWaitCancel').onclick = async () => {
+      try { await TP.cancelPaymentRequest(reqRef); } catch (e) {}
+      modal.remove();
+      resolve('cancelled');
+    };
+  });
 }
 
 /* ============================================================
    INVOICE
    ============================================================ */
-const payLabel = m => ({ cash:'নগদ', bkash:'বিকাশ', card:'কার্ড', bank:'ব্যাংক', upi:'UPI', credit:'বাকি' }[m] || m);
+const payLabel = m => ({ cash:'Cash', bkash:'bKash', card:'Card', bank:'Bank', upi:'UPI', credit:'Credit' }[m] || m);
 
 function showInvoice(sale) {
   const st = S.profile.shop.settings || {};
   const rows = sale.items.map((it, i) => `
     <tr class="border-b border-gray-100">
-      <td class="py-2.5 text-center text-sm text-gray-500">${TP.bn(i+1)}</td>
+      <td class="py-2.5 text-center text-sm text-gray-500">${i+1}</td>
       <td class="py-2.5 text-sm font-medium">${TP.esc(it.name)}</td>
-      <td class="py-2.5 text-right text-sm">${TP.bn(it.qty)} ${TP.esc(it.unit||'')}</td>
+      <td class="py-2.5 text-right text-sm">${it.qty} ${TP.esc(it.unit||'')}</td>
       <td class="py-2.5 text-right text-sm">${TP.money(it.price)}</td>
       <td class="py-2.5 text-right text-sm font-bold">${TP.money(it.qty*it.price)}</td>
     </tr>`).join('');
@@ -673,43 +728,43 @@ function showInvoice(sale) {
     <div class="text-center border-b-2 border-green-600 pb-3 mb-4">
       <h2 class="text-2xl font-extrabold text-green-600">${TP.esc(st.shopName || S.profile.shop.shopName)}</h2>
       ${st.shopAddress ? `<p class="text-xs text-gray-500 mt-1">${TP.esc(st.shopAddress)}</p>` : ''}
-      ${st.shopPhone ? `<p class="text-xs text-gray-500">📞 ${TP.bn(st.shopPhone)}</p>` : ''}
+      ${st.shopPhone ? `<p class="text-xs text-gray-500">📞 ${TP.esc(st.shopPhone)}</p>` : ''}
     </div>
     <div class="grid grid-cols-2 gap-3 text-xs mb-4">
       <div class="space-y-1">
-        <p><span class="text-gray-500">ইনভয়েস:</span> <b class="font-mono">${TP.esc(sale.invoiceNo)}</b></p>
-        <p><span class="text-gray-500">তারিখ:</span> <b>${TP.fmtDate(sale.saleDate)}</b></p>
-        <p><span class="text-gray-500">সেলসম্যান:</span> <b>${TP.esc(sale.salesmanName)}</b></p>
+        <p><span class="text-gray-500">Invoice:</span> <b class="font-mono">${TP.esc(sale.invoiceNo)}</b></p>
+        <p><span class="text-gray-500">Date:</span> <b>${TP.fmtDate(sale.saleDate)}</b></p>
+        <p><span class="text-gray-500">Salesman:</span> <b>${TP.esc(sale.salesmanName)}</b></p>
       </div>
       <div class="space-y-1 text-right">
-        <p><span class="text-gray-500">কাস্টমার:</span> <b>${TP.esc(sale.customerName)}</b></p>
-        ${sale.customerPhone ? `<p><span class="text-gray-500">মোবাইল:</span> <b>${TP.bn(sale.customerPhone)}</b></p>` : ''}
-        <p><span class="text-gray-500">ধরন:</span> <b>${sale.type === 'retail' ? 'রিটেল' : 'হোলসেল'}</b></p>
+        <p><span class="text-gray-500">Customer:</span> <b>${TP.esc(sale.customerName)}</b></p>
+        ${sale.customerPhone ? `<p><span class="text-gray-500">Mobile:</span> <b>${TP.esc(sale.customerPhone)}</b></p>` : ''}
+        <p><span class="text-gray-500">Type:</span> <b>${sale.type === 'retail' ? 'Retail' : 'Wholesale'}</b></p>
       </div>
     </div>
     <div class="overflow-x-auto">
       <table class="w-full"><thead><tr class="bg-gray-100 text-[11px] text-gray-600">
-        <th class="py-2.5 text-center rounded-l-lg w-8">#</th><th class="py-2.5 text-left">নাম</th>
-        <th class="py-2.5 text-right">পরিমাণ</th><th class="py-2.5 text-right">দর</th>
-        <th class="py-2.5 text-right rounded-r-lg">মোট</th>
+        <th class="py-2.5 text-center rounded-l-lg w-8">#</th><th class="py-2.5 text-left">Item</th>
+        <th class="py-2.5 text-right">Qty</th><th class="py-2.5 text-right">Price</th>
+        <th class="py-2.5 text-right rounded-r-lg">Total</th>
       </tr></thead><tbody>${rows}</tbody></table>
     </div>
     <div class="mt-5 ml-auto max-w-[260px] space-y-1.5 text-sm">
-      <div class="flex justify-between"><span class="text-gray-600">সাবটোটাল</span><span class="font-medium">${TP.money(sale.subtotal)}</span></div>
-      <div class="flex justify-between"><span class="text-gray-600">ডিসকাউন্ট</span><span class="font-medium text-orange-600">- ${TP.money(sale.discount)}</span></div>
-      <div class="flex justify-between font-extrabold text-lg border-t-2 border-green-600 pt-2 text-green-600"><span>মোট</span><span>${TP.money(sale.total)}</span></div>
-      <div class="flex justify-between"><span class="text-gray-600">পরিশোধ</span><span class="font-medium text-green-600">${TP.money(sale.paid)}</span></div>
-      <div class="flex justify-between font-bold text-red-600"><span>বাকি</span><span>${TP.money(sale.due)}</span></div>
+      <div class="flex justify-between"><span class="text-gray-600">Subtotal</span><span class="font-medium">${TP.money(sale.subtotal)}</span></div>
+      <div class="flex justify-between"><span class="text-gray-600">Discount</span><span class="font-medium text-orange-600">- ${TP.money(sale.discount)}</span></div>
+      <div class="flex justify-between font-extrabold text-lg border-t-2 border-green-600 pt-2 text-green-600"><span>Total</span><span>${TP.money(sale.total)}</span></div>
+      <div class="flex justify-between"><span class="text-gray-600">Paid</span><span class="font-medium text-green-600">${TP.money(sale.paid)}</span></div>
+      <div class="flex justify-between font-bold text-red-600"><span>Due</span><span>${TP.money(sale.due)}</span></div>
     </div>
     <div class="mt-5 flex justify-center">
       <div class="text-center">
         <div id="invQRCode" style="display:inline-block;padding:8px;background:#fff;border-radius:10px;border:1px solid #e5e7eb"></div>
-        <p class="text-[10px] text-gray-400 mt-1">ইনভয়েস QR</p>
+        <p class="text-[10px] text-gray-400 mt-1">Invoice verification QR</p>
       </div>
     </div>
     <div class="mt-5 text-center text-xs text-gray-500">
-      <p>পেমেন্ট: <b>${TP.esc(payLabel(sale.paymentMethod))}</b></p>
-      <p class="mt-3 text-base">ধন্যবাদ! 🙏</p>
+      <p>Payment: <b>${TP.esc(payLabel(sale.paymentMethod))}</b></p>
+      <p class="mt-3 text-base">Thank you! Visit again 🙏</p>
     </div>`;
   S.currentInvoice = sale;
   openModal('invoiceModal');
@@ -730,29 +785,29 @@ document.getElementById('printA4').addEventListener('click', () => S.currentInvo
 function invoiceDoc(sale, format) {
   const st = S.profile.shop.settings || {};
   const isT = format === 'thermal';
-  const rows = sale.items.map((it, i) => `<tr><td class="c">${TP.bn(i+1)}</td><td>${TP.esc(it.name)}</td><td class="r">${TP.bn(it.qty)}</td><td class="r">${TP.bn(it.price)}</td><td class="r">${TP.bn(it.qty*it.price)}</td></tr>`).join('');
-  const css = isT ? `@page{size:80mm auto;margin:3mm}*{box-sizing:border-box}body{width:74mm;font-family:'Noto Sans Bengali',sans-serif;font-size:11px;margin:0}.head{text-align:center}.head h1{font-size:16px;margin:0}.head p{margin:1px 0;font-size:10px}.meta{font-size:10px;margin:5px 0}.meta p{margin:1px 0}table{width:100%;border-collapse:collapse}th,td{padding:2px 1px;font-size:10px}th{border-bottom:1px solid #000;text-align:left}.c{text-align:center}.r{text-align:right}.totals{margin-top:5px;font-size:11px}.totals div{display:flex;justify-content:space-between}.totals .grand{font-weight:bold;border-top:1px solid #000;padding-top:3px;margin-top:3px;font-size:13px}.foot{text-align:center;margin-top:8px;font-size:10px}`
-    : `@page{size:A4;margin:15mm}*{box-sizing:border-box}body{font-family:'Noto Sans Bengali',sans-serif;font-size:13px;margin:0}.head{text-align:center;border-bottom:2px solid #16a34a;padding-bottom:12px;margin-bottom:16px}.head h1{font-size:28px;margin:0;color:#16a34a}.head p{margin:3px 0;color:#555}.meta{display:flex;justify-content:space-between;margin-bottom:16px;font-size:12px}.meta p{margin:3px 0}table{width:100%;border-collapse:collapse}th{background:#f1f5f9;padding:9px 8px;border:1px solid #cbd5e1;text-align:left;font-size:12px}td{padding:8px;border:1px solid #e2e8f0;font-size:12px}.c{text-align:center}.r{text-align:right}.totals{margin-top:14px;margin-left:auto;width:280px}.totals div{display:flex;justify-content:space-between;padding:5px 0;font-size:13px}.totals .grand{font-weight:bold;border-top:2px solid #16a34a;padding-top:7px;margin-top:4px;font-size:16px;color:#16a34a}.foot{text-align:center;margin-top:50px;font-size:11px;color:#666;border-top:1px dashed #ccc;padding-top:12px}`;
+  const rows = sale.items.map((it, i) => `<tr><td class="c">${i+1}</td><td>${TP.esc(it.name)}</td><td class="r">${it.qty}</td><td class="r">${it.price}</td><td class="r">${(it.qty*it.price).toFixed(2)}</td></tr>`).join('');
+  const css = isT ? `@page{size:80mm auto;margin:3mm}*{box-sizing:border-box}body{width:74mm;font-family:Inter,sans-serif;font-size:11px;margin:0}.head{text-align:center}.head h1{font-size:16px;margin:0}.head p{margin:1px 0;font-size:10px}.meta{font-size:10px;margin:5px 0}.meta p{margin:1px 0}table{width:100%;border-collapse:collapse}th,td{padding:2px 1px;font-size:10px}th{border-bottom:1px solid #000;text-align:left}.c{text-align:center}.r{text-align:right}.totals{margin-top:5px;font-size:11px}.totals div{display:flex;justify-content:space-between}.totals .grand{font-weight:bold;border-top:1px solid #000;padding-top:3px;margin-top:3px;font-size:13px}.foot{text-align:center;margin-top:8px;font-size:10px}`
+    : `@page{size:A4;margin:15mm}*{box-sizing:border-box}body{font-family:Inter,sans-serif;font-size:13px;margin:0}.head{text-align:center;border-bottom:2px solid #16a34a;padding-bottom:12px;margin-bottom:16px}.head h1{font-size:28px;margin:0;color:#16a34a}.head p{margin:3px 0;color:#555}.meta{display:flex;justify-content:space-between;margin-bottom:16px;font-size:12px}.meta p{margin:3px 0}table{width:100%;border-collapse:collapse}th{background:#f1f5f9;padding:9px 8px;border:1px solid #cbd5e1;text-align:left;font-size:12px}td{padding:8px;border:1px solid #e2e8f0;font-size:12px}.c{text-align:center}.r{text-align:right}.totals{margin-top:14px;margin-left:auto;width:280px}.totals div{display:flex;justify-content:space-between;padding:5px 0;font-size:13px}.totals .grand{font-weight:bold;border-top:2px solid #16a34a;padding-top:7px;margin-top:4px;font-size:16px;color:#16a34a}.foot{text-align:center;margin-top:50px;font-size:11px;color:#666;border-top:1px dashed #ccc;padding-top:12px}`;
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${TP.esc(sale.invoiceNo)}</title>
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
   <style>${css}</style></head><body>
     <div class="head"><h1>${TP.esc(st.shopName || S.profile.shop.shopName)}</h1>
       ${st.shopAddress ? `<p>${TP.esc(st.shopAddress)}</p>` : ''}
-      ${st.shopPhone ? `<p>মোবাইল: ${TP.bn(st.shopPhone)}</p>` : ''}</div>
+      ${st.shopPhone ? `<p>Mobile: ${TP.esc(st.shopPhone)}</p>` : ''}</div>
     <div class="meta"><div>
-      <p><b>ইনভয়েস:</b> ${TP.esc(sale.invoiceNo)}</p>
-      <p><b>তারিখ:</b> ${TP.bn(TP.fmtDate(sale.saleDate))}</p>
-      <p><b>কাস্টমার:</b> ${TP.esc(sale.customerName)}</p>
-      <p><b>সেলসম্যান:</b> ${TP.esc(sale.salesmanName)}</p></div></div>
-    <table><thead><tr><th class="c" style="width:30px">#</th><th>নাম</th><th class="r" style="width:70px">পরিমাণ</th><th class="r" style="width:70px">দর</th><th class="r" style="width:85px">মোট</th></tr></thead><tbody>${rows}</tbody></table>
+      <p><b>Invoice:</b> ${TP.esc(sale.invoiceNo)}</p>
+      <p><b>Date:</b> ${TP.fmtDate(sale.saleDate)}</p>
+      <p><b>Customer:</b> ${TP.esc(sale.customerName)}</p>
+      <p><b>Salesman:</b> ${TP.esc(sale.salesmanName)}</p></div></div>
+    <table><thead><tr><th class="c" style="width:30px">#</th><th>Item</th><th class="r" style="width:70px">Qty</th><th class="r" style="width:70px">Price</th><th class="r" style="width:85px">Total</th></tr></thead><tbody>${rows}</tbody></table>
     <div class="totals">
-      <div><span>সাবটোটাল</span><span>${TP.money(sale.subtotal)}</span></div>
-      <div><span>ডিসকাউন্ট</span><span>- ${TP.money(sale.discount)}</span></div>
-      <div class="grand"><span>মোট</span><span>${TP.money(sale.total)}</span></div>
-      <div><span>পরিশোধ</span><span>${TP.money(sale.paid)}</span></div>
-      <div><span>বাকি</span><span>${TP.money(sale.due)}</span></div>
+      <div><span>Subtotal</span><span>${TP.money(sale.subtotal)}</span></div>
+      <div><span>Discount</span><span>- ${TP.money(sale.discount)}</span></div>
+      <div class="grand"><span>Total</span><span>${TP.money(sale.total)}</span></div>
+      <div><span>Paid</span><span>${TP.money(sale.paid)}</span></div>
+      <div><span>Due</span><span>${TP.money(sale.due)}</span></div>
     </div>
-    <div class="foot"><p>পেমেন্ট: ${TP.esc(payLabel(sale.paymentMethod))}</p><p>ধন্যবাদ! 🙏</p></div>
+    <div class="foot"><p>Payment: ${TP.esc(payLabel(sale.paymentMethod))}</p><p>Thank you! 🙏</p></div>
   </body></html>`;
 }
 
@@ -760,7 +815,7 @@ function printInvoice(sale, format) {
   const frame = document.getElementById('printFrame');
   const doc = frame.contentDocument || frame.contentWindow.document;
   doc.open(); doc.write(invoiceDoc(sale, format)); doc.close();
-  setTimeout(() => { try { frame.contentWindow.focus(); frame.contentWindow.print(); } catch { TP.toast('প্রিন্ট করা যায়নি', 'error'); } }, 400);
+  setTimeout(() => { try { frame.contentWindow.focus(); frame.contentWindow.print(); } catch { TP.toast('Print failed', 'error'); } }, 400);
 }
 
 /* ============================================================
@@ -775,17 +830,17 @@ function renderMySales() {
     <div class="p-3 space-y-3">
       <div class="grid grid-cols-2 gap-3">
         <div class="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
-          <div class="text-[11px] text-gray-500">আজকের বিক্রয়</div>
+          <div class="text-[11px] text-gray-500">Today Sales</div>
           <div class="text-xl font-extrabold text-green-600 mt-1">${TP.money(todayTotal)}</div>
-          <div class="text-[10px] text-gray-400">${TP.bn(today.length)} লেনদেন</div>
+          <div class="text-[10px] text-gray-400">${today.length} transactions</div>
         </div>
         <div class="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
-          <div class="text-[11px] text-gray-500">মোট বিক্রয়</div>
+          <div class="text-[11px] text-gray-500">Total Sales</div>
           <div class="text-xl font-extrabold text-blue-600 mt-1">${TP.money(total)}</div>
-          <div class="text-[10px] text-gray-400">${TP.bn(S.sales.length)} লেনদেন</div>
+          <div class="text-[10px] text-gray-400">${S.sales.length} transactions</div>
         </div>
       </div>
-      <h3 class="text-sm font-bold text-gray-500 mt-2">🧾 বিক্রয় তালিকা</h3>
+      <h3 class="text-sm font-bold text-gray-500 mt-2">🧾 Sales List</h3>
       <div class="space-y-2">
         ${S.sales.length ? S.sales.slice(0, 100).map(s => `
           <button data-sale="${s.id}" class="w-full text-left bg-white rounded-xl p-3.5 shadow-sm border border-gray-100">
@@ -797,10 +852,10 @@ function renderMySales() {
               </div>
               <div class="text-right">
                 <div class="font-bold text-green-600">${TP.money(s.total)}</div>
-                ${(+s.due||0)>0 ? `<div class="text-[10px] text-red-600">বাকি ${TP.money(s.due)}</div>` : ''}
+                ${(+s.due||0)>0 ? `<div class="text-[10px] text-red-600">Due ${TP.money(s.due)}</div>` : ''}
               </div>
             </div>
-          </button>`).join('') : `<div class="bg-white rounded-xl p-8 text-center text-gray-400">কোনো বিক্রয় নেই</div>`}
+          </button>`).join('') : `<div class="bg-white rounded-xl p-8 text-center text-gray-400">No sales yet</div>`}
       </div>
     </div>`;
   el.querySelectorAll('[data-sale]').forEach(b => b.addEventListener('click', () => {
@@ -815,7 +870,7 @@ function renderProducts() {
   const el = document.getElementById('page-products');
   el.innerHTML = `
     <div class="p-3 space-y-3">
-      <input id="prodSearch" type="search" placeholder="🔍 প্রোডাক্ট..."
+      <input id="prodSearch" type="search" placeholder="🔍 Search product..."
         class="w-full px-4 py-3 rounded-xl border-2 border-gray-200 bg-white focus:border-green-500 focus:outline-none">
       <div id="prodList" class="space-y-2"></div>
     </div>`;
@@ -833,11 +888,11 @@ function renderProducts() {
         </div>
         <div class="mt-1.5">
           <span class="inline-block px-2 py-0.5 rounded-md text-[11px] font-semibold ${stock<=0?'bg-red-100 text-red-600':low?'bg-orange-100 text-orange-700':'bg-green-100 text-green-700'}">
-            স্টক: ${TP.bn(stock)} ${TP.esc(p.unit||'')}
+            Stock: ${stock} ${TP.esc(p.unit||'')}
           </span>
         </div>
       </div>`;
-    }).join('') : `<div class="bg-white rounded-xl p-8 text-center text-gray-400">কোনো প্রোডাক্ট নেই</div>`;
+    }).join('') : `<div class="bg-white rounded-xl p-8 text-center text-gray-400">No products</div>`;
   };
   renderList();
   document.getElementById('prodSearch').addEventListener('input', e => renderList(e.target.value));
@@ -850,7 +905,7 @@ function renderCustomers() {
   const el = document.getElementById('page-customers');
   el.innerHTML = `
     <div class="p-3 space-y-3">
-      <input id="custSearch" type="search" placeholder="🔍 কাস্টমার..."
+      <input id="custSearch" type="search" placeholder="🔍 Search customer..."
         class="w-full px-4 py-3 rounded-xl border-2 border-gray-200 bg-white focus:border-green-500 focus:outline-none">
       <div id="custList" class="space-y-2"></div>
     </div>`;
@@ -860,10 +915,10 @@ function renderCustomers() {
       <div class="bg-white rounded-xl p-3.5 shadow-sm border border-gray-100 flex justify-between items-start gap-2">
         <div class="min-w-0 flex-1">
           <div class="font-semibold text-sm truncate">${TP.esc(c.name)}</div>
-          ${c.phone ? `<div class="text-xs text-gray-500">📞 ${TP.bn(c.phone)}</div>` : ''}
+          ${c.phone ? `<div class="text-xs text-gray-500">📞 ${TP.esc(c.phone)}</div>` : ''}
         </div>
-        ${(+c.due||0)>0 ? `<div class="font-bold text-red-600 text-sm">বাকি ${TP.money(c.due)}</div>` : `<div class="text-xs text-green-600 font-medium">পরিশোধিত</div>`}
-      </div>`).join('') : `<div class="bg-white rounded-xl p-8 text-center text-gray-400">কোনো কাস্টমার নেই</div>`;
+        ${(+c.due||0)>0 ? `<div class="font-bold text-red-600 text-sm">Due ${TP.money(c.due)}</div>` : `<div class="text-xs text-green-600 font-medium">Clear</div>`}
+      </div>`).join('') : `<div class="bg-white rounded-xl p-8 text-center text-gray-400">No customers</div>`;
   };
   renderList();
   document.getElementById('custSearch').addEventListener('input', e => renderList(e.target.value));
@@ -878,7 +933,7 @@ function renderSettings() {
   el.innerHTML = `
     <div class="p-3 space-y-3">
       <div class="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
-        <h3 class="font-bold mb-2">🏪 শপ তথ্য</h3>
+        <h3 class="font-bold mb-2">🏪 Shop Info</h3>
         <div class="flex items-center gap-2 mb-2">
           <span class="text-xs text-gray-500">Shop ID:</span>
           <span class="font-mono font-bold text-green-600 bg-green-50 px-2 py-1 rounded text-sm">${TP.esc(S.shopId)}</span>
@@ -886,48 +941,48 @@ function renderSettings() {
         <div class="text-sm text-gray-700">
           <div><b>${TP.esc(S.profile.shop.shopName)}</b></div>
           ${st.shopAddress ? `<div class="text-xs text-gray-500 mt-1">${TP.esc(st.shopAddress)}</div>` : ''}
-          ${S.profile.shop.phone ? `<div class="text-xs text-gray-500 mt-0.5">📞 ${TP.bn(S.profile.shop.phone)}</div>` : ''}
+          ${S.profile.shop.phone ? `<div class="text-xs text-gray-500 mt-0.5">📞 ${TP.esc(S.profile.shop.phone)}</div>` : ''}
         </div>
         ${st.upiId ? `
         <div class="mt-3 pt-3 border-t border-gray-100">
           <div class="flex items-center justify-between mb-2">
-            <div class="text-xs font-bold text-gray-700">💳 UPI আইডি</div>
-            <button id="showUPIBtn" class="text-[10px] bg-purple-100 text-purple-700 px-2 py-1 rounded font-semibold">QR দেখান</button>
+            <div class="text-xs font-bold text-gray-700">💳 UPI ID</div>
+            <button id="showUPIBtn" class="text-[10px] bg-purple-100 text-purple-700 px-2 py-1 rounded font-semibold">Show QR</button>
           </div>
           <div class="font-mono text-xs bg-gray-50 px-2 py-1.5 rounded">${TP.esc(st.upiId)}</div>
         </div>` : `
         <div class="mt-3 pt-3 border-t border-gray-100">
-          <div class="text-[11px] text-orange-600 bg-orange-50 px-2 py-1.5 rounded">⚠️ Admin এখনো UPI ID সেট করেননি</div>
+          <div class="text-[11px] text-orange-600 bg-orange-50 px-2 py-1.5 rounded">⚠️ Admin has not set UPI ID yet</div>
         </div>`}
       </div>
 
       <div class="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
-        <h3 class="font-bold mb-2">👤 অ্যাকাউন্ট</h3>
+        <h3 class="font-bold mb-2">👤 Account</h3>
         <div class="text-sm space-y-1">
-          <div class="flex justify-between"><span class="text-gray-500">নাম</span><b>${TP.esc(S.profile.name)}</b></div>
-          <div class="flex justify-between"><span class="text-gray-500">ইউজারনেম</span><b class="font-mono">${TP.esc(S.profile.username)}</b></div>
-          <div class="flex justify-between"><span class="text-gray-500">রোল</span><b>সেলসম্যান</b></div>
+          <div class="flex justify-between"><span class="text-gray-500">Name</span><b>${TP.esc(S.profile.name)}</b></div>
+          <div class="flex justify-between"><span class="text-gray-500">Username</span><b class="font-mono">${TP.esc(S.profile.username)}</b></div>
+          <div class="flex justify-between"><span class="text-gray-500">Role</span><b>Salesman</b></div>
         </div>
       </div>
 
       <div class="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
-        <h3 class="font-bold mb-2">📱 রিমোট স্ক্যানার</h3>
-        <p class="text-xs text-gray-500 mb-3">আলাদা ফোন দিয়ে প্রোডাক্ট স্ক্যান করে এই POS-এ পাঠান</p>
+        <h3 class="font-bold mb-2">📱 Remote Scanner</h3>
+        <p class="text-xs text-gray-500 mb-3">Connect a separate phone to scan products into this POS</p>
         <div id="scannerSessionBox"></div>
       </div>
 
       <div class="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
-        <h3 class="font-bold mb-2">💳 Payment ডিভাইস</h3>
-        <p class="text-xs text-gray-500 mb-3">আলাদা ফোন/ট্যাবে UPI QR দেখানোর জন্য কানেক্ট করুন</p>
+        <h3 class="font-bold mb-2">💳 Payment Device</h3>
+        <p class="text-xs text-gray-500 mb-3">Connect a separate phone/tablet to display the UPI QR</p>
         <div id="paymentDeviceBox"></div>
       </div>
 
       <div class="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
-        <h3 class="font-bold mb-3">🔐 পাসওয়ার্ড পরিবর্তন</h3>
-        <input id="oldPass" type="password" placeholder="পুরনো" class="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl mb-2 focus:border-green-500 focus:outline-none">
-        <input id="newPass" type="password" placeholder="নতুন" class="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl mb-2 focus:border-green-500 focus:outline-none">
-        <input id="newPass2" type="password" placeholder="আবার" class="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl mb-3 focus:border-green-500 focus:outline-none">
-        <button id="changePass" class="w-full bg-gray-800 text-white py-3 rounded-xl font-semibold">পরিবর্তন</button>
+        <h3 class="font-bold mb-3">🔐 Change Password</h3>
+        <input id="oldPass" type="password" placeholder="Current password" class="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl mb-2 focus:border-green-500 focus:outline-none">
+        <input id="newPass" type="password" placeholder="New password" class="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl mb-2 focus:border-green-500 focus:outline-none">
+        <input id="newPass2" type="password" placeholder="Confirm new password" class="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl mb-3 focus:border-green-500 focus:outline-none">
+        <button id="changePass" class="w-full bg-gray-800 text-white py-3 rounded-xl font-semibold">Change Password</button>
       </div>
     </div>`;
 
@@ -948,20 +1003,20 @@ function renderSettings() {
     const oldP = document.getElementById('oldPass').value;
     const np = document.getElementById('newPass').value;
     const np2 = document.getElementById('newPass2').value;
-    if (np !== np2) { TP.toast('পাসওয়ার্ড মিলছে না', 'error'); return; }
-    if (np.length < 6) { TP.toast('কমপক্ষে ৬ অক্ষর', 'error'); return; }
+    if (np !== np2) { TP.toast('Passwords do not match', 'error'); return; }
+    if (np.length < 6) { TP.toast('At least 6 characters', 'error'); return; }
     try {
       const cred = firebase.auth.EmailAuthProvider.credential(TP.auth.currentUser.email, oldP);
       await TP.auth.currentUser.reauthenticateWithCredential(cred);
       await TP.auth.currentUser.updatePassword(np);
-      TP.toast('সফল!', 'success');
+      TP.toast('Password changed', 'success');
       document.getElementById('oldPass').value = '';
       document.getElementById('newPass').value = '';
       document.getElementById('newPass2').value = '';
     } catch (err) {
-      let msg = 'পরিবর্তন ব্যর্থ';
-      if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') msg = 'পুরনো পাসওয়ার্ড ভুল';
-      if (err.code === 'weak-password') msg = 'পাসওয়ার্ড দুর্বল';
+      let msg = 'Change failed';
+      if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') msg = 'Current password is wrong';
+      if (err.code === 'auth/weak-password') msg = 'Password too weak';
       TP.toast(msg, 'error');
     }
   });
@@ -977,22 +1032,22 @@ function renderScannerSessionBox() {
     box.innerHTML = `
       <div class="bg-green-50 border-2 border-dashed border-green-300 rounded-xl p-3 mb-3 text-center">
         <div class="text-3xl mb-1">📱</div>
-        <div class="text-xs text-gray-600">এখনো কোনো স্ক্যানার ডিভাইস কানেক্টেড নেই</div>
+        <div class="text-xs text-gray-600">No scanner device connected</div>
       </div>
-      <button id="btnStartScanner" class="w-full bg-green-600 text-white py-3.5 rounded-xl font-semibold shadow-lg active:scale-[.98]">📷 স্ক্যানার ডিভাইস কানেক্ট করুন</button>`;
+      <button id="btnStartScanner" class="w-full bg-green-600 text-white py-3.5 rounded-xl font-semibold shadow-lg active:scale-[.98]">📷 Connect Scanner Device</button>`;
     document.getElementById('btnStartScanner').addEventListener('click', startScannerSession);
     return;
   }
   box.innerHTML = `
     <div class="bg-green-50 border border-green-300 rounded-xl p-3 mb-3">
       <div class="flex items-center gap-2 mb-2"><span class="w-2.5 h-2.5 rounded-full bg-green-500 pulse"></span>
-        <span class="font-bold text-sm text-green-700">সেশন চালু</span></div>
+        <span class="font-bold text-sm text-green-700">Session Active</span></div>
       <div class="text-[11px] text-gray-600 font-mono break-all mb-2">${TP.esc(S.scannerSessionId)}</div>
-      <div class="text-[11px] text-gray-500">স্ক্যানার ফোনে QR স্ক্যান করলে এখানে কার্টে যোগ হবে</div>
+      <div class="text-[11px] text-gray-500">Scans from the connected device will be added to this cart</div>
     </div>
     <div class="grid grid-cols-2 gap-2">
-      <button id="btnShowQR" class="bg-blue-600 text-white py-3 rounded-xl font-semibold text-sm active:scale-95">📱 QR দেখান</button>
-      <button id="btnStopScanner" class="bg-red-50 text-red-600 py-3 rounded-xl font-semibold text-sm active:scale-95">⛔ ডিসকানেক্ট</button>
+      <button id="btnShowQR" class="bg-blue-600 text-white py-3 rounded-xl font-semibold text-sm active:scale-95">📱 Show QR</button>
+      <button id="btnStopScanner" class="bg-red-50 text-red-600 py-3 rounded-xl font-semibold text-sm active:scale-95">⛔ Disconnect</button>
     </div>`;
   document.getElementById('btnShowQR').addEventListener('click', () => showSessionQR(S.scannerSessionId));
   document.getElementById('btnStopScanner').addEventListener('click', stopScannerSession);
@@ -1000,27 +1055,27 @@ function renderScannerSessionBox() {
 
 async function startScannerSession() {
   try {
-    TP.toast('QR তৈরি হচ্ছে...', 'info');
+    TP.toast('Generating QR...', 'info');
     const sessionId = await TP.createScannerSession(S.shopId, S.profile.uid, S.profile.name, S.profile.shop?.shopName || '');
     S.scannerSessionId = sessionId;
     localStorage.setItem('tp_scanner_session', JSON.stringify({ sessionId, salesmanId: S.profile.uid }));
     setupScannerScanListener(sessionId);
     renderScannerSessionBox();
     showSessionQR(sessionId);
-    TP.toast('QR তৈরি — স্ক্যান করুন', 'success');
-  } catch (e) { console.error(e); TP.toast('সেশন তৈরি ব্যর্থ: ' + (e.message || ''), 'error'); }
+    TP.toast('QR ready — scan it', 'success');
+  } catch (e) { console.error(e); TP.toast('Session failed: ' + (e.message || ''), 'error'); }
 }
 
 async function stopScannerSession() {
   if (!S.scannerSessionId) return;
-  if (!await TP.askConfirm('স্ক্যানার ডিসকানেক্ট করবেন?')) return;
+  if (!await TP.askConfirm('Disconnect scanner device?')) return;
   const sid = S.scannerSessionId;
   S.scannerSessionId = null;
   localStorage.removeItem('tp_scanner_session');
   if (S.scannerUnsub) { try { S.scannerUnsub(); } catch {} S.scannerUnsub = null; }
   await TP.deleteScannerSession(sid);
   renderScannerSessionBox();
-  TP.toast('ডিসকানেক্টেড', 'success');
+  TP.toast('Disconnected', 'success');
 }
 
 async function showSessionQR(sessionId) {
@@ -1029,23 +1084,23 @@ async function showSessionQR(sessionId) {
   if (old) old.remove();
   const modal = document.createElement('div');
   modal.id = '_scannerQRModal';
-  modal.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;font-family:'Noto Sans Bengali',sans-serif;overflow-y:auto`;
+  modal.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;font-family:Inter,sans-serif;overflow-y:auto`;
   modal.innerHTML = `
     <div style="background:#fff;border-radius:22px;max-width:420px;width:100%;padding:22px;text-align:center">
       <div style="font-size:38px;margin-bottom:4px">📱</div>
-      <h3 style="font-weight:800;font-size:18px;margin:0 0 4px">স্ক্যানার ডিভাইস কানেক্ট</h3>
-      <p style="color:#6b7280;font-size:12px;margin:0 0 14px">অন্য ফোনে QR স্ক্যান করুন</p>
-      <div id="_sqrLoading" style="padding:30px;color:#6b7280">QR তৈরি হচ্ছে...</div>
+      <h3 style="font-weight:800;font-size:18px;margin:0 0 4px">Connect Scanner Device</h3>
+      <p style="color:#6b7280;font-size:12px;margin:0 0 14px">Scan this QR with another phone</p>
+      <div id="_sqrLoading" style="padding:30px;color:#6b7280">Generating QR...</div>
       <div id="_sqrWrap" style="display:none">
         <div style="background:#fff;padding:10px;border-radius:12px;display:inline-block;border:2px solid #16a34a">
           <img id="_sqrImg" style="width:240px;height:240px;display:block">
         </div>
-        <div id="_sqrStatus" style="margin-top:12px;background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:8px;font-size:12px;color:#15803d;font-weight:600">⏳ স্ক্যানার ডিভাইসের অপেক্ষায়...</div>
+        <div id="_sqrStatus" style="margin-top:12px;background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:8px;font-size:12px;color:#15803d;font-weight:600">⏳ Waiting for scanner device...</div>
         <div style="margin-top:10px;font-size:10px;color:#9ca3af;font-family:monospace;word-break:break-all;line-height:1.4">${TP.esc(url)}</div>
       </div>
       <div style="margin-top:14px;display:flex;gap:8px">
-        <button id="_sqrCopy" style="flex:1;background:#2563eb;color:#fff;padding:11px;border:none;border-radius:10px;font-weight:700;font-size:13px;font-family:inherit;cursor:pointer">📋 URL কপি</button>
-        <button id="_sqrClose" style="flex:1;background:#f3f4f6;color:#374151;padding:11px;border:none;border-radius:10px;font-weight:700;font-size:13px;font-family:inherit;cursor:pointer">বন্ধ</button>
+        <button id="_sqrCopy" style="flex:1;background:#2563eb;color:#fff;padding:11px;border:none;border-radius:10px;font-weight:700;font-size:13px;font-family:inherit;cursor:pointer">📋 Copy URL</button>
+        <button id="_sqrClose" style="flex:1;background:#f3f4f6;color:#374151;padding:11px;border:none;border-radius:10px;font-weight:700;font-size:13px;font-family:inherit;cursor:pointer">Close</button>
       </div>
     </div>`;
   document.body.appendChild(modal);
@@ -1054,14 +1109,14 @@ async function showSessionQR(sessionId) {
     document.getElementById('_sqrLoading').style.display = 'none';
     document.getElementById('_sqrWrap').style.display = '';
     document.getElementById('_sqrImg').src = dataURL;
-  } catch (e) { document.getElementById('_sqrLoading').textContent = '⚠️ QR তৈরি হয়নি'; }
+  } catch (e) { document.getElementById('_sqrLoading').textContent = '⚠️ QR generation failed'; }
   const unsub = TP.db.collection('scannerSessions').doc(sessionId).onSnapshot(snap => {
     if (!snap.exists) { unsub(); modal.remove(); return; }
     const d = snap.data();
     const el = document.getElementById('_sqrStatus');
-    if (el && d.scannerConnected) { el.style.background = '#dcfce7'; el.style.color = '#15803d'; el.innerHTML = '✅ স্ক্যানার ডিভাইস কানেক্টেড!'; }
+    if (el && d.scannerConnected) { el.style.background = '#dcfce7'; el.style.color = '#15803d'; el.innerHTML = '✅ Scanner device connected!'; }
   });
-  document.getElementById('_sqrCopy').onclick = async () => { await TP.copyText(url); TP.toast('কপি হয়েছে', 'success'); };
+  document.getElementById('_sqrCopy').onclick = async () => { await TP.copyText(url); TP.toast('Copied', 'success'); };
   document.getElementById('_sqrClose').onclick = () => { unsub(); modal.remove(); };
   modal.addEventListener('click', e => { if (e.target === modal) { unsub(); modal.remove(); } });
 }
@@ -1077,9 +1132,9 @@ function setupScannerScanListener(sessionId) {
         if (!code) return;
         const product = S.products.find(p => String(p.barcode || '').trim() === code);
         if (product) {
-          if ((+product.stockQty || 0) <= 0) TP.toast('📱 ' + product.name + ' — স্টক শেষ!', 'error');
-          else { addToCart(product.id); TP.toast('📱 ' + product.name + ' যোগ হয়েছে', 'success'); if (S.currentPage !== 'pos') goTo('pos'); }
-        } else TP.toast('📱 বারকোড পাওয়া যায়নি: ' + code, 'error');
+          if ((+product.stockQty || 0) <= 0) TP.toast('📱 ' + product.name + ' — Out of stock!', 'error');
+          else { addToCart(product.id); TP.toast('📱 ' + product.name + ' added', 'success'); if (S.currentPage !== 'pos') goTo('pos'); }
+        } else TP.toast('📱 Barcode not found: ' + code, 'error');
         change.doc.ref.delete().catch(() => {});
       });
     }, err => console.error('scan listener:', err));
@@ -1106,30 +1161,30 @@ function renderPaymentDeviceBox() {
   if (!box) return;
   const st = S.profile.shop.settings || {};
   if (!st.upiId) {
-    box.innerHTML = `<div class="bg-orange-50 border border-orange-200 rounded-xl p-3 text-xs text-orange-800">⚠️ Admin এখনো UPI ID সেট করেননি</div>`;
+    box.innerHTML = `<div class="bg-orange-50 border border-orange-200 rounded-xl p-3 text-xs text-orange-800">⚠️ Admin has not set UPI ID yet</div>`;
     return;
   }
   if (!S.paymentSessionId) {
     box.innerHTML = `
       <div class="bg-green-50 border-2 border-dashed border-green-300 rounded-xl p-3 mb-3 text-center">
         <div class="text-3xl mb-1">💳</div>
-        <div class="text-xs text-gray-600">পেমেন্ট ডিভাইস কানেক্টেড নেই</div>
+        <div class="text-xs text-gray-600">No payment device connected</div>
         <div class="text-[10px] text-gray-400 mt-1">UPI: ${TP.esc(st.upiId)}</div>
       </div>
-      <button id="btnStartPayment" class="w-full bg-green-600 text-white py-3.5 rounded-xl font-semibold shadow-lg active:scale-[.98]">📷 Payment ডিভাইস কানেক্ট করুন</button>`;
+      <button id="btnStartPayment" class="w-full bg-green-600 text-white py-3.5 rounded-xl font-semibold shadow-lg active:scale-[.98]">📷 Connect Payment Device</button>`;
     document.getElementById('btnStartPayment').addEventListener('click', startPaymentDevice);
     return;
   }
   box.innerHTML = `
     <div class="bg-green-50 border border-green-300 rounded-xl p-3 mb-3">
       <div class="flex items-center gap-2 mb-2"><span class="w-2.5 h-2.5 rounded-full bg-green-500 pulse"></span>
-        <span class="font-bold text-sm text-green-700">সেশন চালু</span></div>
+        <span class="font-bold text-sm text-green-700">Session Active</span></div>
       <div class="text-[11px] text-gray-600 font-mono break-all mb-2">${TP.esc(S.paymentSessionId)}</div>
-      <div class="text-[11px] text-gray-500">POS এ UPI select করলে ওই ডিভাইসে QR দেখাবে</div>
+      <div class="text-[11px] text-gray-500">QR will appear on the connected device when UPI is selected</div>
     </div>
     <div class="grid grid-cols-2 gap-2">
-      <button id="btnShowPayQR" class="bg-blue-600 text-white py-3 rounded-xl font-semibold text-sm active:scale-95">📱 QR দেখান</button>
-      <button id="btnStopPayment" class="bg-red-50 text-red-600 py-3 rounded-xl font-semibold text-sm active:scale-95">⛔ ডিসকানেক্ট</button>
+      <button id="btnShowPayQR" class="bg-blue-600 text-white py-3 rounded-xl font-semibold text-sm active:scale-95">📱 Show QR</button>
+      <button id="btnStopPayment" class="bg-red-50 text-red-600 py-3 rounded-xl font-semibold text-sm active:scale-95">⛔ Disconnect</button>
     </div>`;
   document.getElementById('btnShowPayQR').addEventListener('click', () => showPaymentQR(S.paymentSessionId));
   document.getElementById('btnStopPayment').addEventListener('click', stopPaymentDevice);
@@ -1138,27 +1193,27 @@ function renderPaymentDeviceBox() {
 async function startPaymentDevice() {
   try {
     const st = S.profile.shop.settings || {};
-    if (!st.upiId) { TP.toast('Admin আগে UPI ID সেট করুন', 'error'); return; }
-    TP.toast('QR তৈরি হচ্ছে...', 'info');
+    if (!st.upiId) { TP.toast('Admin must set UPI ID first', 'error'); return; }
+    TP.toast('Generating QR...', 'info');
     const sessionId = await TP.createPaymentSession(S.shopId, S.profile.uid, S.profile.name,
       st.shopName || S.profile.shop.shopName, st.upiId, st.upiName || '');
     S.paymentSessionId = sessionId;
     localStorage.setItem('tp_payment_session', JSON.stringify({ sessionId, salesmanId: S.profile.uid }));
     renderPaymentDeviceBox();
     showPaymentQR(sessionId);
-    TP.toast('Payment ডিভাইস রেডি', 'success');
-  } catch (e) { console.error(e); TP.toast('সেশন তৈরি ব্যর্থ: ' + e.message, 'error'); }
+    TP.toast('Payment device ready', 'success');
+  } catch (e) { console.error(e); TP.toast('Session failed: ' + e.message, 'error'); }
 }
 
 async function stopPaymentDevice() {
   if (!S.paymentSessionId) return;
-  if (!await TP.askConfirm('Payment ডিভাইস ডিসকানেক্ট করবেন?')) return;
+  if (!await TP.askConfirm('Disconnect payment device?')) return;
   const sid = S.paymentSessionId;
   S.paymentSessionId = null;
   localStorage.removeItem('tp_payment_session');
   await TP.deletePaymentSession(sid);
   renderPaymentDeviceBox();
-  TP.toast('ডিসকানেক্টেড', 'success');
+  TP.toast('Disconnected', 'success');
 }
 
 async function showPaymentQR(sessionId) {
@@ -1167,23 +1222,23 @@ async function showPaymentQR(sessionId) {
   if (old) old.remove();
   const modal = document.createElement('div');
   modal.id = '_payQRModal';
-  modal.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;font-family:'Noto Sans Bengali',sans-serif;overflow-y:auto`;
+  modal.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;font-family:Inter,sans-serif;overflow-y:auto`;
   modal.innerHTML = `
     <div style="background:#fff;border-radius:22px;max-width:420px;width:100%;padding:22px;text-align:center">
       <div style="font-size:38px;margin-bottom:4px">💳</div>
-      <h3 style="font-weight:800;font-size:18px;margin:0 0 4px">Payment ডিভাইস কানেক্ট</h3>
-      <p style="color:#6b7280;font-size:12px;margin:0 0 14px">অন্য ফোনে QR স্ক্যান করুন</p>
-      <div id="_payQRLoad" style="padding:30px;color:#6b7280">QR তৈরি হচ্ছে...</div>
+      <h3 style="font-weight:800;font-size:18px;margin:0 0 4px">Connect Payment Device</h3>
+      <p style="color:#6b7280;font-size:12px;margin:0 0 14px">Scan this QR with another phone/tablet</p>
+      <div id="_payQRLoad" style="padding:30px;color:#6b7280">Generating QR...</div>
       <div id="_payQRWrap" style="display:none">
         <div style="background:#fff;padding:10px;border-radius:12px;display:inline-block;border:2px solid #16a34a">
           <img id="_payQRImg" style="width:240px;height:240px;display:block">
         </div>
-        <div id="_payQRStatus" style="margin-top:12px;background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:8px;font-size:12px;color:#15803d;font-weight:600">⏳ ডিভাইসের অপেক্ষায়...</div>
+        <div id="_payQRStatus" style="margin-top:12px;background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:8px;font-size:12px;color:#15803d;font-weight:600">⏳ Waiting for device...</div>
         <div style="margin-top:10px;font-size:10px;color:#9ca3af;font-family:monospace;word-break:break-all;line-height:1.4">${TP.esc(url)}</div>
       </div>
       <div style="margin-top:14px;display:flex;gap:8px">
-        <button id="_payQRCopy" style="flex:1;background:#2563eb;color:#fff;padding:11px;border:none;border-radius:10px;font-weight:700;font-size:13px;font-family:inherit;cursor:pointer">📋 URL কপি</button>
-        <button id="_payQRClose" style="flex:1;background:#f3f4f6;color:#374151;padding:11px;border:none;border-radius:10px;font-weight:700;font-size:13px;font-family:inherit;cursor:pointer">বন্ধ</button>
+        <button id="_payQRCopy" style="flex:1;background:#2563eb;color:#fff;padding:11px;border:none;border-radius:10px;font-weight:700;font-size:13px;font-family:inherit;cursor:pointer">📋 Copy URL</button>
+        <button id="_payQRClose" style="flex:1;background:#f3f4f6;color:#374151;padding:11px;border:none;border-radius:10px;font-weight:700;font-size:13px;font-family:inherit;cursor:pointer">Close</button>
       </div>
     </div>`;
   document.body.appendChild(modal);
@@ -1192,14 +1247,14 @@ async function showPaymentQR(sessionId) {
     document.getElementById('_payQRLoad').style.display = 'none';
     document.getElementById('_payQRWrap').style.display = '';
     document.getElementById('_payQRImg').src = qr;
-  } catch (e) { document.getElementById('_payQRLoad').textContent = '⚠️ QR তৈরি হয়নি'; }
+  } catch (e) { document.getElementById('_payQRLoad').textContent = '⚠️ QR generation failed'; }
   const unsub = TP.db.collection('paymentSessions').doc(sessionId).onSnapshot(snap => {
     if (!snap.exists) { unsub(); modal.remove(); return; }
     const d = snap.data();
     const el = document.getElementById('_payQRStatus');
-    if (el && d.deviceConnected) { el.style.background = '#dcfce7'; el.style.color = '#15803d'; el.innerHTML = '✅ ডিভাইস কানেক্টেড!'; }
+    if (el && d.deviceConnected) { el.style.background = '#dcfce7'; el.style.color = '#15803d'; el.innerHTML = '✅ Payment device connected!'; }
   });
-  document.getElementById('_payQRCopy').onclick = async () => { await TP.copyText(url); TP.toast('কপি হয়েছে', 'success'); };
+  document.getElementById('_payQRCopy').onclick = async () => { await TP.copyText(url); TP.toast('Copied', 'success'); };
   document.getElementById('_payQRClose').onclick = () => { unsub(); modal.remove(); };
   modal.addEventListener('click', e => { if (e.target === modal) { unsub(); modal.remove(); } });
 }
