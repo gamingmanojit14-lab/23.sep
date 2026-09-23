@@ -6,7 +6,6 @@
 <title>অ্যাডমিন প্যানেল — TextilePOS</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script>
 tailwind.config = { theme: { extend: {
@@ -154,7 +153,8 @@ const A = {
   // Remote scanner
   scannerSessionId: null,
   scannerUnsub: null,
-  scannerSessionUnsub: null,
+  // Remote payment
+  paymentSessionId: null,
 };
 
 function openModal(id) { const m = document.getElementById(id); if (m) { m.classList.remove('hide'); m.classList.add('flex'); } }
@@ -203,6 +203,7 @@ function openForm(title, fields, values, onSubmit) {
   A.profile = profile;
   A.shopId = profile.shopId;
   await restoreScannerSession();
+  restorePaymentSession();
   document.getElementById('loadingScreen').classList.add('hide');
   document.getElementById('app').classList.remove('hide');
   renderShell();
@@ -337,17 +338,14 @@ function buildDrawerNav() {
   document.getElementById('drawerLogout').addEventListener('click', async () => {
     closeDrawer();
     if (!await TP.askConfirm('লগআউট করতে চান?')) return;
-    if (A.scannerSessionId) {
-      try { await TP.deleteScannerSession(A.scannerSessionId); } catch {}
-      A.scannerSessionId = null;
-      localStorage.removeItem('tp_scanner_session');
-    }
+    if (A.scannerSessionId) { try { await TP.deleteScannerSession(A.scannerSessionId); } catch {} A.scannerSessionId = null; localStorage.removeItem('tp_scanner_session'); }
+    if (A.paymentSessionId) { try { await TP.deletePaymentSession(A.paymentSessionId); } catch {} A.paymentSessionId = null; localStorage.removeItem('tp_payment_session'); }
     await TP.auth.signOut();
   });
 }
 
 /* ============================================================
-   POS with Barcode + QR Scanner
+   POS
    ============================================================ */
 function renderPOS() {
   const el = document.getElementById('page-pos');
@@ -359,7 +357,6 @@ function renderPOS() {
         <button id="typeWhole" class="flex-1 py-3 rounded-xl font-semibold text-sm transition">🏭 হোলসেল</button>
       </div>
 
-      <!-- 📷 BARCODE + QR SCANNER -->
       <div class="flex gap-2">
         <div class="relative flex-1 scan-pulse rounded-xl">
           <input id="barcodeInput" type="text" inputmode="numeric" autocomplete="off"
@@ -367,9 +364,7 @@ function renderPOS() {
             class="w-full px-4 py-4 rounded-xl border-2 border-dashed border-blue-500 bg-blue-50 focus:border-blue-700 focus:bg-white focus:outline-none text-base font-mono pr-12">
           <div class="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] bg-blue-600 text-white px-2 py-1 rounded font-bold pointer-events-none">SCAN</div>
         </div>
-        <button id="qrScanBtn" class="px-4 rounded-xl bg-blue-600 text-white font-bold text-2xl active:scale-95 transition" title="QR স্ক্যান">
-          📱
-        </button>
+        <button id="qrScanBtn" class="px-4 rounded-xl bg-blue-600 text-white font-bold text-2xl active:scale-95 transition" title="QR স্ক্যান">📱</button>
       </div>
 
       <input id="posSearch" type="search" placeholder="🔍 নাম দিয়ে খুঁজুন..." value="${TP.esc(A.posSearch)}"
@@ -525,6 +520,8 @@ function renderCartCheckout() {
   const el = document.getElementById('cartCheckout');
   if (!el) return;
   const subtotal = A.cart.reduce((a, it) => a + it.qty * it.price, 0);
+  const st = A.profile.shop.settings || {};
+  const hasUPI = !!st.upiId;
   el.innerHTML = `
     <div class="space-y-3">
       <div>
@@ -543,14 +540,17 @@ function renderCartCheckout() {
           <input id="paidInput" type="number" min="0" step="1" value="${subtotal}" class="no-spin w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl mt-1 focus:border-blue-500 focus:outline-none"></div>
       </div>
       <div class="flex gap-2 flex-wrap">
-        <button data-quick="${subtotal}" class="quick-pay flex-1 min-w-[80px] bg-gray-100 py-2 rounded-lg text-xs font-semibold">সম্পূর্ণ</button>
-        <button data-quick="500" class="quick-pay flex-1 min-w-[80px] bg-gray-100 py-2 rounded-lg text-xs font-semibold">৫০০</button>
-        <button data-quick="1000" class="quick-pay flex-1 min-w-[80px] bg-gray-100 py-2 rounded-lg text-xs font-semibold">১০০০</button>
+        <button data-quick="${subtotal}" class="quick-pay flex-1 min-w-[70px] bg-gray-100 py-2 rounded-lg text-xs font-semibold">সম্পূর্ণ</button>
+        <button data-quick="500" class="quick-pay flex-1 min-w-[70px] bg-gray-100 py-2 rounded-lg text-xs font-semibold">৫০০</button>
+        <button data-quick="1000" class="quick-pay flex-1 min-w-[70px] bg-gray-100 py-2 rounded-lg text-xs font-semibold">১০০০</button>
       </div>
       <div><label class="text-xs font-bold text-gray-600">পেমেন্ট মেথড</label>
         <select id="payMethod" class="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl mt-1 focus:border-blue-500 focus:outline-none">
-          <option value="cash">💵 নগদ</option><option value="bkash">📱 বিকাশ</option>
-          <option value="card">💳 কার্ড</option><option value="bank">🏦 ব্যাংক</option>
+          <option value="cash">💵 নগদ</option>
+          <option value="bkash">📱 বিকাশ</option>
+          <option value="card">💳 কার্ড</option>
+          <option value="bank">🏦 ব্যাংক</option>
+          <option value="upi" ${hasUPI ? '' : 'disabled'}>💳 UPI QR ${hasUPI ? '' : '(সেটআপ নেই)'}</option>
           <option value="credit">📝 বাকি</option>
         </select></div>
       <div class="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-4 space-y-1.5 text-sm border border-blue-100">
@@ -623,7 +623,62 @@ async function completeSale() {
   const due = Math.max(0, total - paid);
   const method = (document.getElementById('payMethod')||{}).value || 'cash';
   const btn = document.getElementById('checkoutBtn');
+
+  // 💳 UPI payment flow
+  if (method === 'upi') {
+    const st = A.profile.shop.settings || {};
+    if (!st.upiId) {
+      TP.toast('Settings এ UPI ID সেট করুন', 'error');
+      return;
+    }
+
+    let paidConfirm = false;
+
+    // Try remote payment device first
+    if (A.paymentSessionId) {
+      const oldText = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = '📱 ডিভাইসে পাঠানো হচ্ছে...';
+      try {
+        const result = await TP.requestRemotePayment(A.paymentSessionId, {
+          amount: paid || total,
+          invoiceNo: 'প্রস্তাবিত',
+        });
+        if (result === 'paid') {
+          paidConfirm = true;
+          TP.toast('✓ রিমোট পেমেন্ট কনফার্ম', 'success');
+        } else if (result === 'cancelled') {
+          TP.toast('ডিভাইসে বাতিল হয়েছে', 'warn');
+          btn.disabled = false; btn.textContent = oldText;
+          return;
+        } else {
+          TP.toast('ডিভাইস সাড়া দেয়নি — ইন-অ্যাপ QR', 'warn');
+        }
+      } catch (e) {
+        console.error(e);
+        TP.toast('ডিভাইসে পাঠানো যায়নি', 'error');
+      }
+    }
+
+    // Fallback: in-app QR modal
+    if (!paidConfirm) {
+      const payResult = await TP.showUPIPaymentModal({
+        upiId: st.upiId,
+        upiName: st.upiName,
+        amount: paid || total,
+        invoiceNo: 'প্রস্তাবিত',
+        shopName: st.shopName || A.profile.shop.shopName,
+      });
+      if (payResult !== 'received') {
+        TP.toast('পেমেন্ট বাতিল', 'warn');
+        btn.disabled = false; btn.textContent = '✓ বিক্রয় সম্পন্ন';
+        return;
+      }
+    }
+  }
+
   btn.disabled = true; btn.textContent = 'প্রসেস হচ্ছে...';
+
   try {
     const shopRef = TP.db.collection('shops').doc(A.shopId);
     let customerId = null, customerName = 'ওয়াক-ইন কাস্টমার', customerPhone = '';
@@ -681,7 +736,7 @@ async function completeSale() {
 }
 
 /* ── INVOICE ── */
-const payLabel = m => ({ cash:'নগদ', bkash:'বিকাশ', card:'কার্ড', bank:'ব্যাংক', credit:'বাকি' }[m] || m);
+const payLabel = m => ({ cash:'নগদ', bkash:'বিকাশ', card:'কার্ড', bank:'ব্যাংক', upi:'UPI', credit:'বাকি' }[m] || m);
 
 function showInvoice(sale) {
   const st = A.profile.shop.settings || {};
@@ -1185,6 +1240,7 @@ function openPaymentModal(custId) {
       { name: 'amount', label: `পরিমাণ (বাকি: ${TP.money(c.due)})`, type: 'number', required: true, min: 1, default: c.due },
       { name: 'method', label: 'মেথড', type: 'select', options: [
         { value: 'cash', label: '💵 নগদ' }, { value: 'bkash', label: '📱 বিকাশ' },
+        { value: 'upi', label: '💳 UPI' },
         { value: 'card', label: '💳 কার্ড' }, { value: 'bank', label: '🏦 ব্যাংক' }]},
       { name: 'note', label: 'নোট (ঐচ্ছিক)' },
     ], {}, async d => {
@@ -1393,7 +1449,7 @@ function renderReports() {
   el.querySelectorAll('.period-btn').forEach(b => b.addEventListener('click', () => { A.reportPeriod = b.dataset.period; renderReports(); }));
 }
 
-/* ── SETTINGS (with Remote Scanner) ── */
+/* ── SETTINGS ── */
 function renderSettings() {
   const el = document.getElementById('page-settings');
   const s = A.profile.shop.settings || {};
@@ -1413,6 +1469,16 @@ function renderSettings() {
             class="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none">${TP.esc(s.shopAddress||'')}</textarea>
           <input id="setShopPhone" value="${TP.esc(s.shopPhone||'')}" placeholder="মোবাইল"
             class="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none">
+
+          <div class="border-t border-gray-200 mt-3 pt-3">
+            <div class="text-xs font-bold text-gray-700 mb-2">💳 UPI পেমেন্ট</div>
+            <input id="setUPI" value="${TP.esc(s.upiId||'')}" placeholder="যেমন: 9876543210@paytm / mahadeb@ybl"
+              class="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none mb-2 font-mono text-sm">
+            <input id="setUPIName" value="${TP.esc(s.upiName||'')}" placeholder="UPI নাম (ঐচ্ছিক)"
+              class="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none text-sm">
+            <p class="text-[10px] text-gray-400 mt-1.5">এই UPI ID তে কাস্টমাররা পেমেন্ট পাঠাবে</p>
+          </div>
+
           <button id="saveSettings" class="w-full bg-blue-600 text-white py-3 rounded-xl font-semibold">সেভ করুন</button>
         </div>
       </div>
@@ -1434,6 +1500,12 @@ function renderSettings() {
       </div>
 
       <div class="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+        <h3 class="font-bold mb-2">💳 Payment ডিভাইস</h3>
+        <p class="text-xs text-gray-500 mb-3">আলাদা ফোন/ট্যাবে UPI QR দেখানোর জন্য কানেক্ট করুন</p>
+        <div id="paymentDeviceBox"></div>
+      </div>
+
+      <div class="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
         <h3 class="font-bold mb-3">🔐 পাসওয়ার্ড পরিবর্তন</h3>
         <input id="oldPass" type="password" placeholder="পুরনো পাসওয়ার্ড" class="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl mb-2 focus:border-blue-500 focus:outline-none">
         <input id="newPass" type="password" placeholder="নতুন পাসওয়ার্ড" class="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl mb-2 focus:border-blue-500 focus:outline-none">
@@ -1448,6 +1520,7 @@ function renderSettings() {
     </div>`;
 
   renderScannerSessionBox();
+  renderPaymentDeviceBox();
 
   document.getElementById('copyShopId').addEventListener('click', async () => { await TP.copyText(A.shopId); TP.toast('কপি হয়েছে', 'success'); });
   document.getElementById('saveSettings').addEventListener('click', async () => {
@@ -1455,6 +1528,8 @@ function renderSettings() {
       shopName: document.getElementById('setShopName').value.trim() || A.profile.shop.shopName,
       shopAddress: document.getElementById('setShopAddr').value.trim(),
       shopPhone: document.getElementById('setShopPhone').value.trim(),
+      upiId: document.getElementById('setUPI').value.trim(),
+      upiName: document.getElementById('setUPIName').value.trim(),
     };
     try {
       await TP.db.collection('shops').doc(A.shopId).update({ settings, shopName: settings.shopName });
@@ -1478,39 +1553,32 @@ function renderSettings() {
     } catch (err) {
       let msg = 'পরিবর্তন ব্যর্থ';
       if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') msg = 'পুরনো পাসওয়ার্ড ভুল';
-      if (err.code === 'auth/weak-password') msg = 'পাসওয়ার্ড দুর্বল';
+      if (err.code === 'weak-password') msg = 'পাসওয়ার্ড দুর্বল';
       TP.toast(msg, 'error');
     }
   });
 }
 
 /* ═══════════════════════════════════════════════
-   REMOTE SCANNER INTEGRATION
+   REMOTE SCANNER
    ═══════════════════════════════════════════════ */
-
 function renderScannerSessionBox() {
   const box = document.getElementById('scannerSessionBox');
   if (!box) return;
-
   if (!A.scannerSessionId) {
     box.innerHTML = `
       <div class="bg-blue-50 border-2 border-dashed border-blue-300 rounded-xl p-3 mb-3 text-center">
         <div class="text-3xl mb-1">📱</div>
         <div class="text-xs text-gray-600">এখনো কোনো স্ক্যানার ডিভাইস কানেক্টেড নেই</div>
       </div>
-      <button id="btnStartScanner" class="w-full bg-blue-600 text-white py-3.5 rounded-xl font-semibold shadow-lg active:scale-[.98]">
-        📷 স্ক্যানার ডিভাইস কানেক্ট করুন
-      </button>`;
+      <button id="btnStartScanner" class="w-full bg-blue-600 text-white py-3.5 rounded-xl font-semibold shadow-lg active:scale-[.98]">📷 স্ক্যানার ডিভাইস কানেক্ট করুন</button>`;
     document.getElementById('btnStartScanner').addEventListener('click', startScannerSession);
     return;
   }
-
   box.innerHTML = `
     <div class="bg-blue-50 border border-blue-300 rounded-xl p-3 mb-3">
-      <div class="flex items-center gap-2 mb-2">
-        <span class="w-2.5 h-2.5 rounded-full bg-blue-500 pulse"></span>
-        <span class="font-bold text-sm text-blue-700">সেশন চালু</span>
-      </div>
+      <div class="flex items-center gap-2 mb-2"><span class="w-2.5 h-2.5 rounded-full bg-blue-500 pulse"></span>
+        <span class="font-bold text-sm text-blue-700">সেশন চালু</span></div>
       <div class="text-[11px] text-gray-600 font-mono break-all mb-2">${TP.esc(A.scannerSessionId)}</div>
       <div class="text-[11px] text-gray-500">স্ক্যানার ফোনে QR স্ক্যান করলে এখানে কার্টে যোগ হবে</div>
     </div>
@@ -1525,25 +1593,14 @@ function renderScannerSessionBox() {
 async function startScannerSession() {
   try {
     TP.toast('QR তৈরি হচ্ছে...', 'info');
-    const sessionId = await TP.createScannerSession(
-      A.shopId,
-      A.profile.uid,
-      A.profile.name,
-      A.profile.shop?.shopName || ''
-    );
+    const sessionId = await TP.createScannerSession(A.shopId, A.profile.uid, A.profile.name, A.profile.shop?.shopName || '');
     A.scannerSessionId = sessionId;
-    localStorage.setItem('tp_scanner_session', JSON.stringify({
-      sessionId,
-      salesmanId: A.profile.uid,
-    }));
+    localStorage.setItem('tp_scanner_session', JSON.stringify({ sessionId, salesmanId: A.profile.uid }));
     setupScannerScanListener(sessionId);
     renderScannerSessionBox();
     showSessionQR(sessionId);
     TP.toast('QR তৈরি — স্ক্যান করুন', 'success');
-  } catch (e) {
-    console.error(e);
-    TP.toast('সেশন তৈরি ব্যর্থ: ' + (e.message || ''), 'error');
-  }
+  } catch (e) { console.error(e); TP.toast('সেশন তৈরি ব্যর্থ: ' + (e.message || ''), 'error'); }
 }
 
 async function stopScannerSession() {
@@ -1553,7 +1610,6 @@ async function stopScannerSession() {
   A.scannerSessionId = null;
   localStorage.removeItem('tp_scanner_session');
   if (A.scannerUnsub) { try { A.scannerUnsub(); } catch {} A.scannerUnsub = null; }
-  if (A.scannerSessionUnsub) { try { A.scannerSessionUnsub(); } catch {} A.scannerSessionUnsub = null; }
   await TP.deleteScannerSession(sid);
   renderScannerSessionBox();
   TP.toast('ডিসকানেক্টেড', 'success');
@@ -1561,7 +1617,6 @@ async function stopScannerSession() {
 
 async function showSessionQR(sessionId) {
   const url = TP.buildScannerURL(sessionId);
-
   const old = document.getElementById('_scannerQRModal');
   if (old) old.remove();
   const modal = document.createElement('div');
@@ -1571,15 +1626,13 @@ async function showSessionQR(sessionId) {
     <div style="background:#fff;border-radius:22px;max-width:420px;width:100%;padding:22px;text-align:center">
       <div style="font-size:38px;margin-bottom:4px">📱</div>
       <h3 style="font-weight:800;font-size:18px;margin:0 0 4px">স্ক্যানার ডিভাইস কানেক্ট</h3>
-      <p style="color:#6b7280;font-size:12px;margin:0 0 14px">অন্য ফোনে QR স্ক্যান করুন — সেই ফোনই হবে আপনার স্ক্যানার</p>
+      <p style="color:#6b7280;font-size:12px;margin:0 0 14px">অন্য ফোনে QR স্ক্যান করুন</p>
       <div id="_sqrLoading" style="padding:30px;color:#6b7280">QR তৈরি হচ্ছে...</div>
       <div id="_sqrWrap" style="display:none">
         <div style="background:#fff;padding:10px;border-radius:12px;display:inline-block;border:2px solid #2563eb">
           <img id="_sqrImg" style="width:240px;height:240px;display:block">
         </div>
-        <div id="_sqrStatus" style="margin-top:12px;background:#eff6ff;border:1px solid #93c5fd;border-radius:10px;padding:8px;font-size:12px;color:#1e40af;font-weight:600">
-          ⏳ স্ক্যানার ডিভাইসের অপেক্ষায়...
-        </div>
+        <div id="_sqrStatus" style="margin-top:12px;background:#eff6ff;border:1px solid #93c5fd;border-radius:10px;padding:8px;font-size:12px;color:#1e40af;font-weight:600">⏳ স্ক্যানার ডিভাইসের অপেক্ষায়...</div>
         <div style="margin-top:10px;font-size:10px;color:#9ca3af;font-family:monospace;word-break:break-all;line-height:1.4">${TP.esc(url)}</div>
       </div>
       <div style="margin-top:14px;display:flex;gap:8px">
@@ -1588,60 +1641,37 @@ async function showSessionQR(sessionId) {
       </div>
     </div>`;
   document.body.appendChild(modal);
-
   try {
     const dataURL = await TP.generateQRDataURL(url, 600);
     document.getElementById('_sqrLoading').style.display = 'none';
     document.getElementById('_sqrWrap').style.display = '';
     document.getElementById('_sqrImg').src = dataURL;
-  } catch (e) {
-    document.getElementById('_sqrLoading').textContent = '⚠️ QR তৈরি হয়নি';
-  }
-
+  } catch (e) { document.getElementById('_sqrLoading').textContent = '⚠️ QR তৈরি হয়নি'; }
   const unsub = TP.db.collection('scannerSessions').doc(sessionId).onSnapshot(snap => {
     if (!snap.exists) { unsub(); modal.remove(); return; }
     const d = snap.data();
     const el = document.getElementById('_sqrStatus');
-    if (el && d.scannerConnected) {
-      el.style.background = '#dbeafe';
-      el.style.color = '#1e40af';
-      el.innerHTML = '✅ স্ক্যানার ডিভাইস কানেক্টেড!';
-    }
+    if (el && d.scannerConnected) { el.style.background = '#dbeafe'; el.style.color = '#1e40af'; el.innerHTML = '✅ স্ক্যানার ডিভাইস কানেক্টেড!'; }
   });
-
-  document.getElementById('_sqrCopy').onclick = async () => {
-    await TP.copyText(url);
-    TP.toast('URL কপি হয়েছে', 'success');
-  };
+  document.getElementById('_sqrCopy').onclick = async () => { await TP.copyText(url); TP.toast('কপি হয়েছে', 'success'); };
   document.getElementById('_sqrClose').onclick = () => { unsub(); modal.remove(); };
   modal.addEventListener('click', e => { if (e.target === modal) { unsub(); modal.remove(); } });
 }
 
 function setupScannerScanListener(sessionId) {
   if (A.scannerUnsub) { try { A.scannerUnsub(); } catch {} A.scannerUnsub = null; }
-  A.scannerUnsub = TP.db.collection('scannerSessions').doc(sessionId)
-    .collection('scans')
-    .where('processed', '==', false)
-    .onSnapshot(snap => {
+  A.scannerUnsub = TP.db.collection('scannerSessions').doc(sessionId).collection('scans')
+    .where('processed', '==', false).onSnapshot(snap => {
       snap.docChanges().forEach(change => {
         if (change.type !== 'added') return;
         const data = change.doc.data();
         const code = String(data.barcode || '').trim();
         if (!code) return;
-
         const product = A.products.find(p => String(p.barcode || '').trim() === code);
         if (product) {
-          if ((+product.stockQty || 0) <= 0) {
-            TP.toast('📱 ' + product.name + ' — স্টক শেষ!', 'error');
-          } else {
-            addToCart(product.id);
-            TP.toast('📱 ' + product.name + ' যোগ হয়েছে', 'success');
-            if (A.currentPage !== 'pos') goTo('pos');
-          }
-        } else {
-          TP.toast('📱 বারকোড পাওয়া যায়নি: ' + code, 'error');
-        }
-
+          if ((+product.stockQty || 0) <= 0) TP.toast('📱 ' + product.name + ' — স্টক শেষ!', 'error');
+          else { addToCart(product.id); TP.toast('📱 ' + product.name + ' যোগ হয়েছে', 'success'); if (A.currentPage !== 'pos') goTo('pos'); }
+        } else TP.toast('📱 বারকোড পাওয়া যায়নি: ' + code, 'error');
         change.doc.ref.delete().catch(() => {});
       });
     }, err => console.error('scan listener:', err));
@@ -1652,20 +1682,136 @@ async function restoreScannerSession() {
     const raw = localStorage.getItem('tp_scanner_session');
     if (!raw) return;
     const s = JSON.parse(raw);
-    if (s.salesmanId !== A.profile.uid) {
-      localStorage.removeItem('tp_scanner_session');
-      return;
-    }
+    if (s.salesmanId !== A.profile.uid) { localStorage.removeItem('tp_scanner_session'); return; }
     const doc = await TP.db.collection('scannerSessions').doc(s.sessionId).get();
-    if (!doc.exists) {
-      localStorage.removeItem('tp_scanner_session');
-      return;
-    }
+    if (!doc.exists) { localStorage.removeItem('tp_scanner_session'); return; }
     A.scannerSessionId = s.sessionId;
     setupScannerScanListener(s.sessionId);
-  } catch (e) {
-    console.error('restoreScannerSession:', e);
+  } catch (e) { console.error(e); }
+}
+
+/* ═══════════════════════════════════════════════
+   PAYMENT DEVICE
+   ═══════════════════════════════════════════════ */
+function renderPaymentDeviceBox() {
+  const box = document.getElementById('paymentDeviceBox');
+  if (!box) return;
+  const s = A.profile.shop.settings || {};
+  if (!s.upiId) {
+    box.innerHTML = `<div class="bg-orange-50 border border-orange-200 rounded-xl p-3 text-xs text-orange-800">⚠️ আগে <b>💳 UPI পেমেন্ট</b> সেটিংসে UPI ID সেভ করুন</div>`;
+    return;
   }
+  if (!A.paymentSessionId) {
+    box.innerHTML = `
+      <div class="bg-blue-50 border-2 border-dashed border-blue-300 rounded-xl p-3 mb-3 text-center">
+        <div class="text-3xl mb-1">💳</div>
+        <div class="text-xs text-gray-600">পেমেন্ট ডিভাইস কানেক্টেড নেই</div>
+        <div class="text-[10px] text-gray-400 mt-1">UPI: ${TP.esc(s.upiId)}</div>
+      </div>
+      <button id="btnStartPayment" class="w-full bg-blue-600 text-white py-3.5 rounded-xl font-semibold shadow-lg active:scale-[.98]">📷 Payment ডিভাইস কানেক্ট করুন</button>`;
+    document.getElementById('btnStartPayment').addEventListener('click', startPaymentDevice);
+    return;
+  }
+  box.innerHTML = `
+    <div class="bg-blue-50 border border-blue-300 rounded-xl p-3 mb-3">
+      <div class="flex items-center gap-2 mb-2"><span class="w-2.5 h-2.5 rounded-full bg-blue-500 pulse"></span>
+        <span class="font-bold text-sm text-blue-700">সেশন চালু</span></div>
+      <div class="text-[11px] text-gray-600 font-mono break-all mb-2">${TP.esc(A.paymentSessionId)}</div>
+      <div class="text-[11px] text-gray-500">POS এ UPI select করলে ওই ডিভাইসে QR দেখাবে</div>
+    </div>
+    <div class="grid grid-cols-2 gap-2">
+      <button id="btnShowPayQR" class="bg-blue-600 text-white py-3 rounded-xl font-semibold text-sm active:scale-95">📱 QR দেখান</button>
+      <button id="btnStopPayment" class="bg-red-50 text-red-600 py-3 rounded-xl font-semibold text-sm active:scale-95">⛔ ডিসকানেক্ট</button>
+    </div>`;
+  document.getElementById('btnShowPayQR').addEventListener('click', () => showPaymentQR(A.paymentSessionId));
+  document.getElementById('btnStopPayment').addEventListener('click', stopPaymentDevice);
+}
+
+async function startPaymentDevice() {
+  try {
+    const s = A.profile.shop.settings || {};
+    if (!s.upiId) { TP.toast('আগে UPI ID সেভ করুন', 'error'); return; }
+    TP.toast('QR তৈরি হচ্ছে...', 'info');
+    const sessionId = await TP.createPaymentSession(A.shopId, A.profile.uid, A.profile.name,
+      s.shopName || A.profile.shop.shopName, s.upiId, s.upiName || '');
+    A.paymentSessionId = sessionId;
+    localStorage.setItem('tp_payment_session', JSON.stringify({ sessionId, salesmanId: A.profile.uid }));
+    renderPaymentDeviceBox();
+    showPaymentQR(sessionId);
+    TP.toast('Payment ডিভাইস রেডি', 'success');
+  } catch (e) { console.error(e); TP.toast('সেশন তৈরি ব্যর্থ: ' + e.message, 'error'); }
+}
+
+async function stopPaymentDevice() {
+  if (!A.paymentSessionId) return;
+  if (!await TP.askConfirm('Payment ডিভাইস ডিসকানেক্ট করবেন?')) return;
+  const sid = A.paymentSessionId;
+  A.paymentSessionId = null;
+  localStorage.removeItem('tp_payment_session');
+  await TP.deletePaymentSession(sid);
+  renderPaymentDeviceBox();
+  TP.toast('ডিসকানেক্টেড', 'success');
+}
+
+async function showPaymentQR(sessionId) {
+  const url = TP.buildPaymentURL(sessionId);
+  const old = document.getElementById('_payQRModal');
+  if (old) old.remove();
+  const modal = document.createElement('div');
+  modal.id = '_payQRModal';
+  modal.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;font-family:'Noto Sans Bengali',sans-serif;overflow-y:auto`;
+  modal.innerHTML = `
+    <div style="background:#fff;border-radius:22px;max-width:420px;width:100%;padding:22px;text-align:center">
+      <div style="font-size:38px;margin-bottom:4px">💳</div>
+      <h3 style="font-weight:800;font-size:18px;margin:0 0 4px">Payment ডিভাইস কানেক্ট</h3>
+      <p style="color:#6b7280;font-size:12px;margin:0 0 14px">অন্য ফোনে QR স্ক্যান করুন</p>
+      <div id="_payQRLoad" style="padding:30px;color:#6b7280">QR তৈরি হচ্ছে...</div>
+      <div id="_payQRWrap" style="display:none">
+        <div style="background:#fff;padding:10px;border-radius:12px;display:inline-block;border:2px solid #2563eb">
+          <img id="_payQRImg" style="width:240px;height:240px;display:block">
+        </div>
+        <div id="_payQRStatus" style="margin-top:12px;background:#eff6ff;border:1px solid #93c5fd;border-radius:10px;padding:8px;font-size:12px;color:#1e40af;font-weight:600">⏳ ডিভাইসের অপেক্ষায়...</div>
+        <div style="margin-top:10px;font-size:10px;color:#9ca3af;font-family:monospace;word-break:break-all;line-height:1.4">${TP.esc(url)}</div>
+      </div>
+      <div style="margin-top:14px;display:flex;gap:8px">
+        <button id="_payQRCopy" style="flex:1;background:#2563eb;color:#fff;padding:11px;border:none;border-radius:10px;font-weight:700;font-size:13px;font-family:inherit;cursor:pointer">📋 URL কপি</button>
+        <button id="_payQRClose" style="flex:1;background:#f3f4f6;color:#374151;padding:11px;border:none;border-radius:10px;font-weight:700;font-size:13px;font-family:inherit;cursor:pointer">বন্ধ</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  try {
+    const qr = await TP.generateQRDataURL(url, 600);
+    document.getElementById('_payQRLoad').style.display = 'none';
+    document.getElementById('_payQRWrap').style.display = '';
+    document.getElementById('_payQRImg').src = qr;
+  } catch (e) { document.getElementById('_payQRLoad').textContent = '⚠️ QR তৈরি হয়নি'; }
+  const unsub = TP.db.collection('paymentSessions').doc(sessionId).onSnapshot(snap => {
+    if (!snap.exists) { unsub(); modal.remove(); return; }
+    const d = snap.data();
+    const el = document.getElementById('_payQRStatus');
+    if (el && d.deviceConnected) { el.style.background = '#dbeafe'; el.style.color = '#1e40af'; el.innerHTML = '✅ ডিভাইস কানেক্টেড!'; }
+  });
+  document.getElementById('_payQRCopy').onclick = async () => { await TP.copyText(url); TP.toast('কপি হয়েছে', 'success'); };
+  document.getElementById('_payQRClose').onclick = () => { unsub(); modal.remove(); };
+  modal.addEventListener('click', e => { if (e.target === modal) { unsub(); modal.remove(); } });
+}
+
+function restorePaymentSession() {
+  try {
+    const raw = localStorage.getItem('tp_payment_session');
+    if (!raw) return;
+    const s = JSON.parse(raw);
+    if (s.salesmanId !== A.profile.uid) { localStorage.removeItem('tp_payment_session'); return; }
+    // Async check
+    (async () => {
+      try {
+        const doc = await TP.db.collection('paymentSessions').doc(s.sessionId).get();
+        if (!doc.exists) { localStorage.removeItem('tp_payment_session'); return; }
+        A.paymentSessionId = s.sessionId;
+        if (A.currentPage === 'settings') renderSettings();
+      } catch {}
+    })();
+  } catch (e) { console.error(e); }
 }
 
 window.goTo = goTo;
