@@ -15,13 +15,13 @@
     <div class="text-center mb-6">
       <div class="text-5xl mb-2">🧵</div>
       <h1 class="text-2xl font-extrabold">লগইন</h1>
-      <p class="text-gray-500 text-xs mt-1">Shop ID অথবা মোবাইল নাম্বার দিয়ে</p>
+      <p class="text-gray-500 text-xs mt-1">Email / Shop ID / মোবাইল দিয়ে</p>
     </div>
 
     <form id="loginForm" class="space-y-3" autocomplete="off">
       <div>
-        <label class="block text-xs font-bold text-gray-600 mb-1">Shop ID অথবা মোবাইল</label>
-        <input id="inpIdentifier" required placeholder="SHOP-XXXXXX অথবা 01XXXXXXXXX"
+        <label class="block text-xs font-bold text-gray-600 mb-1">ইমেইল / Shop ID / মোবাইল</label>
+        <input id="inpIdentifier" required placeholder="name@gmail.com / SHOP-XXXXXX / 9XXXXXXXXX"
           class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none">
       </div>
 
@@ -40,7 +40,7 @@
       </div>
 
       <button id="btnLogin" type="submit"
-        class="w-full bg-blue-600 hover:bg-blue-700 text-white py-3.5 rounded-xl font-bold shadow-lg shadow-blue-500/30 active:scale-[.98] transition disabled:opacity-60">
+        class="w-full bg-blue-600 hover:bg-blue-700 text-white py-3.5 rounded-xl font-bold shadow-lg active:scale-[.98] transition disabled:opacity-60">
         লগইন করুন
       </button>
     </form>
@@ -63,7 +63,9 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <script src="common.js"></script>
 <script>
-/* ---------- LOGIN ---------- */
+/* ============================================================
+   LOGIN
+   ============================================================ */
 document.getElementById('loginForm').addEventListener('submit', async e => {
   e.preventDefault();
 
@@ -76,32 +78,62 @@ document.getElementById('loginForm').addEventListener('submit', async e => {
   btn.textContent = 'অপেক্ষা করুন...';
 
   try {
-    let shopId = null;
+    let email = null;
 
-    // Detect phone vs shop ID
-    const digitsOnly = raw.replace(/\D/g, '');
-    if (digitsOnly.length >= 10 && !raw.toUpperCase().startsWith('SHOP')) {
-      const phone = TP.normalizePhone(raw);
-      const snap = await TP.db.collection('phoneIndex').doc(phone).get();
-      if (!snap.exists) throw new Error('এই মোবাইল নাম্বার রেজিস্টার্ড নেই');
-      shopId = snap.data().shopId;
+    // ─── Determine email by input type ───
+    if (raw.includes('@')) {
+      // Direct email login (admin only, salesmen don't have real emails)
+      email = TP.normalizeEmail(raw);
+      if (!TP.isValidGmail(email)) throw new Error('ইমেইল ভুল ফরম্যাটে');
+      // Salesman can't login with email; if username empty but email given,
+      // we assume admin. If username given with email, reject.
+      if (username) throw new Error('ইমেইল দিয়ে লগইনে ইউজারনেম খালি রাখুন');
+
+    } else if (raw.toUpperCase().startsWith('SHOP-')) {
+      // Shop ID login
+      const shopId = raw.toUpperCase();
+      const shopSnap = await TP.db.collection('shops').doc(shopId).get();
+      if (!shopSnap.exists) throw new Error('এই শপ আইডি পাওয়া যায়নি');
+      const shopData = shopSnap.data();
+
+      if (username) {
+        // Salesman login
+        email = TP.salesmanEmail(shopId, username);
+      } else {
+        // Admin login via Shop ID → need admin email from shop doc
+        if (!shopData.adminEmail) throw new Error('এই দোকানে অ্যাডমিন ইমেইল নেই');
+        email = shopData.adminEmail;
+      }
+
     } else {
-      shopId = raw.toUpperCase();
-      const snap = await TP.db.collection('shops').doc(shopId).get();
-      if (!snap.exists) throw new Error('এই শপ আইডি পাওয়া যায়নি');
+      // Try phone
+      const phone = TP.normalizePhone(raw);
+      if (!TP.isValidPhone(phone)) throw new Error('সঠিক ইমেইল / Shop ID / মোবাইল দিন');
+      const phoneSnap = await TP.db.collection('phoneIndex').doc(phone).get();
+      if (!phoneSnap.exists) throw new Error('এই নাম্বার রেজিস্টার্ড নেই');
+      const data = phoneSnap.data();
+
+      if (username) {
+        // Salesman by phone → need shopId
+        email = TP.salesmanEmail(data.shopId, username);
+      } else {
+        // Admin by phone
+        if (!data.email) throw new Error('এই নাম্বারে অ্যাডমিন ইমেইল পাওয়া যায়নি');
+        email = data.email;
+      }
     }
 
-    // Determine login email
-    const email = username ? TP.salesmanEmail(shopId, username) : TP.adminEmail(shopId);
+    if (!email) throw new Error('লগইন তথ্য সঠিক নয়');
 
-    // Sign in — onAuthStateChanged will handle redirect
+    // Sign in with Firebase
     await TP.auth.signInWithEmailAndPassword(email, password);
+    // onAuthStateChanged will handle redirect
 
   } catch (err) {
     console.error(err);
     let msg = err.message || 'লগইন ব্যর্থ';
     if (['auth/user-not-found','auth/wrong-password','auth/invalid-credential','auth/invalid-login-credentials'].includes(err.code)) {
-      msg = 'ইউজারনেম বা পাসওয়ার্ড ভুল';
+      msg = 'পাসওয়ার্ড ভুল অথবা ইউজার নেই';
     }
     if (err.code === 'auth/too-many-requests') msg = 'অনেকবার চেষ্টা — কিছুক্ষণ পরে';
     if (err.code === 'auth/network-request-failed') msg = 'ইন্টারনেট নেই';
@@ -111,11 +143,11 @@ document.getElementById('loginForm').addEventListener('submit', async e => {
   }
 });
 
-/* ---------- AUTO REDIRECT + FORCE PASSWORD CHANGE ---------- */
+/* ─── Auto redirect + force password change ─── */
 TP.auth.onAuthStateChanged(async user => {
   if (!user) {
-    document.getElementById('btnLogin').disabled = false;
-    document.getElementById('btnLogin').textContent = 'লগইন করুন';
+    const b = document.getElementById('btnLogin');
+    if (b) { b.disabled = false; b.textContent = 'লগইন করুন'; }
     return;
   }
   try {
@@ -124,12 +156,10 @@ TP.auth.onAuthStateChanged(async user => {
     const userData = userDoc.data();
 
     if (userData.mustChangePassword) {
-      // Show force-password modal
       showForcePassword(user, userData);
       return;
     }
 
-    // Redirect
     location.href = userData.role === 'admin' ? 'admin.html' : 'salesman.html';
   } catch (err) {
     console.error(err);
@@ -137,10 +167,9 @@ TP.auth.onAuthStateChanged(async user => {
   }
 });
 
-/* ---------- FORCE PASSWORD CHANGE ---------- */
+/* ─── Force password change modal ─── */
 function showForcePassword(user, userData) {
-  const existing = document.getElementById('forcePwModal');
-  if (existing) return;
+  if (document.getElementById('forcePwModal')) return;
 
   const modal = document.createElement('div');
   modal.id = 'forcePwModal';
