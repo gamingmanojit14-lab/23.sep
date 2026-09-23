@@ -1,5 +1,6 @@
-/* ============================================================
+ /* ============================================================
    TextilePOS — Common Utilities & Firebase Init
+   Supports: Bangladesh (01XXXXXXXXX) + India (10-digit) numbers
    ============================================================ */
 
 if (!window.FIREBASE_CONFIG || window.FIREBASE_CONFIG.apiKey === 'PASTE_YOUR_API_KEY_HERE') {
@@ -50,15 +51,29 @@ const copyText = t => {
   return Promise.resolve();
 };
 
-/* ---------- Phone & Shop ID ---------- */
+/* ---------- Phone (Bangladesh + India support) ---------- */
 function normalizePhone(raw) {
   let p = String(raw || '').replace(/\D/g, '');
+  // Bangladesh: +880 → 0, 880 → 0, 88 → 0
   if (p.startsWith('880') && p.length === 13) p = '0' + p.slice(3);
   if (p.startsWith('88') && p.length === 12) p = '0' + p.slice(2);
+  // India: +91 → remove country code (leaves 10 digits)
+  if (p.startsWith('91') && p.length === 12) p = p.slice(2);
   return p;
 }
-const isValidPhone = p => /^01[3-9]\d{8}$/.test(p);
 
+function isValidPhone(p) {
+  if (!p) return false;
+  // Bangladesh: 01[3-9]XXXXXXXX (11 digits)
+  if (/^01[3-9]\d{8}$/.test(p)) return true;
+  // India: [6-9]XXXXXXXXX (10 digits)
+  if (/^[6-9]\d{9}$/.test(p)) return true;
+  // Generic fallback: any 10-13 digit number
+  if (/^\d{10,13}$/.test(p)) return true;
+  return false;
+}
+
+/* ---------- Shop ID ---------- */
 function generateShopId() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let s = '';
@@ -94,7 +109,7 @@ function toast(msg, type = 'info') {
   }, 2400);
 }
 
-/* ---------- Confirm ---------- */
+/* ---------- Confirm Dialog ---------- */
 let _confirmResolve = null;
 function askConfirm(msg) {
   return new Promise(res => {
@@ -149,7 +164,7 @@ async function requireAuth(requiredRole) {
   });
 }
 
-/* ---------- Expose ---------- */
+/* ---------- Expose to window ---------- */
 window.TP = { auth, db, FV, $, $$, bn, money, esc, todayKey, fmtDate, fmtDateOnly, isToday, uid, copyText,
               normalizePhone, isValidPhone, generateShopId, adminEmail, salesmanEmail,
               toast, askConfirm, requireAuth };
