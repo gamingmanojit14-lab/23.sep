@@ -1,13 +1,12 @@
- /* ============================================================
+/* ============================================================
    TextilePOS — Common Utilities & Firebase Init
-   Supports: Bangladesh (01XXXXXXXXX) + India (10-digit) numbers
+   Supports: Real Gmail registration + BN/IN phone numbers
    ============================================================ */
 
 if (!window.FIREBASE_CONFIG || window.FIREBASE_CONFIG.apiKey === 'PASTE_YOUR_API_KEY_HERE') {
   document.body.innerHTML = `<div style="padding:40px;font-family:sans-serif;max-width:600px;margin:auto;line-height:1.8">
     <h1 style="color:#dc2626">⚠️ Firebase Config সেট করা হয়নি</h1>
     <p><b>firebase-config.js</b> ফাইলটি খুলে <b>FIREBASE_CONFIG</b> object এর মানগুলো পেস্ট করুন।</p>
-    <p>বিস্তারিত: README.md দেখুন।</p>
   </div>`;
   throw new Error('Firebase config missing');
 }
@@ -51,25 +50,28 @@ const copyText = t => {
   return Promise.resolve();
 };
 
+/* ---------- Email (Gmail) ---------- */
+function normalizeEmail(raw) {
+  return String(raw || '').trim().toLowerCase();
+}
+function isValidGmail(email) {
+  // Format: name.title.number@gmail.com (any valid gmail)
+  return /^[a-z0-9][a-z0-9._%+-]{2,}@gmail\.com$/i.test(String(email || '').trim());
+}
+
 /* ---------- Phone (Bangladesh + India support) ---------- */
 function normalizePhone(raw) {
   let p = String(raw || '').replace(/\D/g, '');
-  // Bangladesh: +880 → 0, 880 → 0, 88 → 0
   if (p.startsWith('880') && p.length === 13) p = '0' + p.slice(3);
   if (p.startsWith('88') && p.length === 12) p = '0' + p.slice(2);
-  // India: +91 → remove country code (leaves 10 digits)
   if (p.startsWith('91') && p.length === 12) p = p.slice(2);
   return p;
 }
-
 function isValidPhone(p) {
   if (!p) return false;
-  // Bangladesh: 01[3-9]XXXXXXXX (11 digits)
-  if (/^01[3-9]\d{8}$/.test(p)) return true;
-  // India: [6-9]XXXXXXXXX (10 digits)
-  if (/^[6-9]\d{9}$/.test(p)) return true;
-  // Generic fallback: any 10-13 digit number
-  if (/^\d{10,13}$/.test(p)) return true;
+  if (/^01[3-9]\d{8}$/.test(p)) return true;   // BD
+  if (/^[6-9]\d{9}$/.test(p)) return true;      // IN
+  if (/^\d{10,13}$/.test(p)) return true;       // Fallback
   return false;
 }
 
@@ -81,7 +83,7 @@ function generateShopId() {
   return 'SHOP-' + s;
 }
 const shopIdKey = id => String(id || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-const adminEmail    = sid => `a-${shopIdKey(sid)}@textilepos-user.app`;
+// Salesman email (admin creates them without real email)
 const salesmanEmail = (sid, u) => `s-${shopIdKey(sid)}-${String(u||'').toLowerCase().replace(/[^a-z0-9]/g,'')}@textilepos-user.app`;
 
 /* ---------- Toast ---------- */
@@ -98,7 +100,7 @@ function toast(msg, type = 'info') {
   const el = document.createElement('div');
   el.style.cssText = `background:${colors[type]};color:#fff;padding:12px 16px;border-radius:12px;
     box-shadow:0 10px 30px rgba(0,0,0,.3);display:flex;align-items:center;gap:8px;font-size:14px;
-    font-weight:500;animation:tpToastIn .2s ease;font-family:'Noto Sans Bengali',sans-serif`;
+    font-weight:500;font-family:'Noto Sans Bengali',sans-serif`;
   el.innerHTML = `<span>${icons[type]}</span><span>${esc(msg)}</span>`;
   tc.appendChild(el);
   setTimeout(() => {
@@ -109,7 +111,7 @@ function toast(msg, type = 'info') {
   }, 2400);
 }
 
-/* ---------- Confirm Dialog ---------- */
+/* ---------- Confirm ---------- */
 let _confirmResolve = null;
 function askConfirm(msg) {
   return new Promise(res => {
@@ -151,6 +153,7 @@ async function requireAuth(requiredRole) {
         if (!shopDoc.exists) { await auth.signOut(); location.href = 'login.html'; return; }
         const profile = {
           uid: user.uid,
+          email: user.email,
           ...userData,
           shop: { shopId: userData.shopId, ...shopDoc.data() },
         };
@@ -164,7 +167,8 @@ async function requireAuth(requiredRole) {
   });
 }
 
-/* ---------- Expose to window ---------- */
+/* ---------- Expose ---------- */
 window.TP = { auth, db, FV, $, $$, bn, money, esc, todayKey, fmtDate, fmtDateOnly, isToday, uid, copyText,
-              normalizePhone, isValidPhone, generateShopId, adminEmail, salesmanEmail,
+              normalizeEmail, isValidGmail, normalizePhone, isValidPhone,
+              generateShopId, salesmanEmail,
               toast, askConfirm, requireAuth };
