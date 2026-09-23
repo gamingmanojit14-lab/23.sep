@@ -1,10 +1,11 @@
 /* ============================================================
    🔥 FIREBASE CONFIGURATION
+   Project: fir-c6c4c
    ============================================================ */
 
 const FIREBASE_CONFIG = {
   apiKey:            "AIzaSyDc8Ui4b7oXfjpngns6Vd7TFyCfkt1TJeQ",
-  authDomain:        "fir-c6c4c.firebaseapp.com",
+  authDomain:        "fir-c6c4.firebaseapp.com",
   projectId:         "fir-c6c4c",
   storageBucket:     "fir-c6c4c.firebasestorage.app",
   messagingSenderId: "977248213751",
@@ -12,4 +13,3 @@ const FIREBASE_CONFIG = {
 };
 
 window.FIREBASE_CONFIG = FIREBASE_CONFIG;
-
