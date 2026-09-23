@@ -16,7 +16,6 @@
 <body class="min-h-screen bg-gradient-to-br from-green-600 via-blue-700 to-indigo-800 flex items-start justify-center p-4 pt-8">
 
 <div class="w-full max-w-md">
-  <!-- Card -->
   <div id="wizardCard" class="bg-white rounded-3xl shadow-2xl p-7">
     <div class="text-center mb-6">
       <div class="text-5xl mb-2">🧵</div>
@@ -31,7 +30,7 @@
       <div class="step-dot flex-1 h-1.5 rounded-full bg-gray-200 transition-all"></div>
     </div>
 
-    <!-- ═══════ STEP 1 ═══════ -->
+    <!-- ═══════ STEP 1: Shop + Owner ═══════ -->
     <div id="step1" class="step">
       <h2 class="text-lg font-bold mb-1">দোকানের তথ্য</h2>
       <p class="text-xs text-gray-500 mb-4">আপনার দোকান সম্পর্কে জানুন</p>
@@ -49,25 +48,25 @@
       </button>
     </div>
 
-    <!-- ═══════ STEP 2 ═══════ -->
+    <!-- ═══════ STEP 2: Gmail + Phone + Shop ID ═══════ -->
     <div id="step2" class="step hidden">
-      <h2 class="text-lg font-bold mb-1">আপনার শপ আইডি</h2>
-      <p class="text-xs text-gray-500 mb-3">এই আইডি ও মোবাইল দিয়ে লগইন করবেন</p>
+      <h2 class="text-lg font-bold mb-1">যোগাযোগ ও ইমেইল</h2>
+      <p class="text-xs text-gray-500 mb-3">এই ইমেইল দিয়েই লগইন করবেন</p>
 
-      <div class="bg-blue-50 border-2 border-dashed border-blue-300 rounded-2xl p-4 text-center mb-3">
-        <div class="text-[10px] text-blue-700 font-bold mb-1">জেনারেট করা শপ আইডি</div>
-        <div id="outShopId" class="text-2xl font-extrabold text-blue-700 tracking-wider font-mono select-all">—</div>
-        <button id="btnCopyId" class="mt-2 text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg font-semibold">📋 কপি</button>
-      </div>
-
-      <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-2 text-[11px] text-yellow-800 mb-3">
-        ⚠️ এই আইডি সংরক্ষণ করুন। হারালে লগইন করতে পারবেন না।
-      </div>
+      <label class="block text-xs font-bold text-gray-600 mb-1">Gmail ইমেইল *</label>
+      <input id="inpEmail" type="email" placeholder="nam.title.number@gmail.com" autocomplete="off"
+        class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none lowercase mb-1">
+      <p class="text-[10px] text-gray-400 mb-3">Format: <span class="font-mono">name.title.number@gmail.com</span></p>
 
       <label class="block text-xs font-bold text-gray-600 mb-1">মোবাইল নাম্বার *</label>
-      <input id="inpPhone" type="tel" inputmode="numeric" placeholder="01XXXXXXXXX" autocomplete="off"
+      <input id="inpPhone" type="tel" inputmode="numeric" placeholder="01XXXXXXXXX / 9XXXXXXXXX" autocomplete="off"
         class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none mb-4">
-      <p class="text-[10px] text-gray-400 -mt-3 mb-4">এই নাম্বার দিয়েও লগইন করা যাবে</p>
+
+      <div class="bg-blue-50 border-2 border-dashed border-blue-300 rounded-2xl p-3 text-center mb-4">
+        <div class="text-[10px] text-blue-700 font-bold mb-1">আপনার শপ আইডি</div>
+        <div id="outShopId" class="text-xl font-extrabold text-blue-700 tracking-wider font-mono select-all">—</div>
+        <button id="btnCopyId" class="mt-1.5 text-[10px] bg-blue-600 text-white px-3 py-1 rounded-lg font-semibold">📋 কপি</button>
+      </div>
 
       <div class="flex gap-2">
         <button id="btnBackStep1" class="flex-1 bg-gray-100 py-3.5 rounded-xl font-bold">← পিছনে</button>
@@ -77,7 +76,7 @@
       </div>
     </div>
 
-    <!-- ═══════ STEP 3 ═══════ -->
+    <!-- ═══════ STEP 3: Password ═══════ -->
     <div id="step3" class="step hidden">
       <h2 class="text-lg font-bold mb-1">পাসওয়ার্ড সেট করুন</h2>
       <p class="text-xs text-gray-500 mb-4">নিরাপদ পাসওয়ার্ড দিন (কমপক্ষে ৬ অক্ষর)</p>
@@ -111,15 +110,23 @@
     <h2 class="text-2xl font-extrabold text-green-600">সফল!</h2>
     <p class="text-gray-500 text-sm mt-1 mb-5">আপনার দোকান তৈরি হয়েছে</p>
 
-    <div class="bg-blue-50 border-2 border-dashed border-blue-300 rounded-2xl p-4 mb-4">
-      <div class="text-[10px] text-blue-700 font-bold mb-1">শপ আইডি</div>
-      <div id="successShopId" class="text-2xl font-extrabold text-blue-700 tracking-wider font-mono mb-3"></div>
-      <div class="text-[10px] text-gray-600">মোবাইল নাম্বার</div>
-      <div id="successPhone" class="font-bold"></div>
+    <div class="bg-blue-50 border-2 border-dashed border-blue-300 rounded-2xl p-4 mb-4 text-left space-y-2">
+      <div>
+        <div class="text-[10px] text-blue-700 font-bold">ইমেইল (লগইন আইডি)</div>
+        <div id="successEmail" class="font-mono font-bold text-sm text-blue-700 break-all"></div>
+      </div>
+      <div>
+        <div class="text-[10px] text-blue-700 font-bold">শপ আইডি</div>
+        <div id="successShopId" class="text-xl font-extrabold text-blue-700 tracking-wider font-mono"></div>
+      </div>
+      <div>
+        <div class="text-[10px] text-blue-700 font-bold">মোবাইল নাম্বার</div>
+        <div id="successPhone" class="font-bold"></div>
+      </div>
     </div>
 
     <div class="bg-yellow-50 border border-yellow-200 rounded-xl p-3 text-left text-xs text-yellow-800 mb-5">
-      ⚠️ Shop ID ও মোবাইল নাম্বার সংরক্ষণ করুন। লগইনে লাগবে।
+      ⚠️ এই তথ্যগুলো সংরক্ষণ করুন। ইমেইল দিয়ে লগইন করবেন।
     </div>
 
     <button id="btnGoLogin" class="w-full bg-blue-600 text-white py-3.5 rounded-xl font-bold">
@@ -137,9 +144,7 @@
 /* ============================================================
    REGISTER WIZARD
    ============================================================ */
-const R = {
-  shopName: '', ownerName: '', shopId: '', phone: '',
-};
+const R = { shopName: '', ownerName: '', email: '', phone: '', shopId: '' };
 
 const $step1 = document.getElementById('step1');
 const $step2 = document.getElementById('step2');
@@ -172,28 +177,56 @@ document.getElementById('btnToStep2').addEventListener('click', () => {
   showStep(2);
 });
 
-/* STEP 2 → 1 */
+/* BACK */
 document.getElementById('btnBackStep1').addEventListener('click', () => showStep(1));
+document.getElementById('btnBackStep2').addEventListener('click', () => showStep(2));
 
-/* Copy shop id */
+/* COPY shop id */
 document.getElementById('btnCopyId').addEventListener('click', async () => {
   await TP.copyText(R.shopId);
   TP.toast('শপ আইডি কপি হয়েছে', 'success');
 });
 
 /* STEP 2 → 3 */
-document.getElementById('btnToStep3').addEventListener('click', () => {
-  const phone = TP.normalizePhone(document.getElementById('inpPhone').value);
-  if (!TP.isValidPhone(phone)) {
-    TP.toast('সঠিক মোবাইল নাম্বার দিন (01XXXXXXXXX)', 'error');
+document.getElementById('btnToStep3').addEventListener('click', async () => {
+  const emailRaw = document.getElementById('inpEmail').value.trim();
+  const phoneRaw = document.getElementById('inpPhone').value.trim();
+
+  const email = TP.normalizeEmail(emailRaw);
+  if (!TP.isValidGmail(email)) {
+    TP.toast('সঠিক Gmail ইমেইল দিন (যেমন: name.title.123@gmail.com)', 'error');
     return;
   }
+
+  const phone = TP.normalizePhone(phoneRaw);
+  if (!TP.isValidPhone(phone)) {
+    TP.toast('সঠিক মোবাইল নাম্বার দিন', 'error');
+    return;
+  }
+
+  // Check email already used
+  const emailBtn = document.getElementById('btnToStep3');
+  emailBtn.disabled = true; emailBtn.textContent = 'চেক করা হচ্ছে...';
+  try {
+    const emailCheck = await TP.db.collection('emailIndex').doc(email).get();
+    if (emailCheck.exists) {
+      throw new Error('এই ইমেইল দিয়ে আগেই দোকান খোলা হয়েছে');
+    }
+    const phoneCheck = await TP.db.collection('phoneIndex').doc(phone).get();
+    if (phoneCheck.exists) {
+      throw new Error('এই মোবাইল নাম্বার দিয়ে আগেই দোকান খোলা হয়েছে');
+    }
+  } catch (err) {
+    TP.toast(err.message, 'error');
+    emailBtn.disabled = false; emailBtn.textContent = 'পরবর্তী →';
+    return;
+  }
+
+  R.email = email;
   R.phone = phone;
+  emailBtn.disabled = false; emailBtn.textContent = 'পরবর্তী →';
   showStep(3);
 });
-
-/* STEP 3 → 2 */
-document.getElementById('btnBackStep2').addEventListener('click', () => showStep(2));
 
 /* FINISH */
 document.getElementById('btnFinish').addEventListener('click', async () => {
@@ -207,13 +240,7 @@ document.getElementById('btnFinish').addEventListener('click', async () => {
   btn.textContent = 'তৈরি হচ্ছে...';
 
   try {
-    // Check phone already used
-    const phoneSnap = await TP.db.collection('phoneIndex').doc(R.phone).get();
-    if (phoneSnap.exists) {
-      throw new Error('এই মোবাইল নাম্বার দিয়ে আগেই দোকান খোলা হয়েছে');
-    }
-
-    // Check shop ID collision (rare)
+    // Check shopId collision
     const shopSnap = await TP.db.collection('shops').doc(R.shopId).get();
     if (shopSnap.exists) {
       R.shopId = TP.generateShopId();
@@ -221,9 +248,9 @@ document.getElementById('btnFinish').addEventListener('click', async () => {
       throw new Error('শপ আইডি সংঘর্ষ — আবার চেষ্টা করুন');
     }
 
-    // Create Firebase Auth user (this signs in automatically)
-    const email = TP.adminEmail(R.shopId);
-    const cred = await TP.auth.createUserWithEmailAndPassword(email, p1);
+    // Create Firebase Auth user with REAL EMAIL
+    // Password exactly as user provided
+    const cred = await TP.auth.createUserWithEmailAndPassword(R.email, p1);
     const adminUid = cred.user.uid;
 
     // Write shop doc
@@ -231,6 +258,7 @@ document.getElementById('btnFinish').addEventListener('click', async () => {
       shopId: R.shopId,
       shopName: R.shopName,
       ownerName: R.ownerName,
+      adminEmail: R.email,          // ⬅️ store admin's real email
       phone: R.phone,
       adminUid,
       settings: { shopName: R.shopName, shopAddress: '', shopPhone: R.phone },
@@ -242,18 +270,22 @@ document.getElementById('btnFinish').addEventListener('click', async () => {
       shopId: R.shopId,
       username: 'admin',
       name: R.ownerName,
+      email: R.email,
       role: 'admin',
       mustChangePassword: false,
       createdAt: TP.FV.serverTimestamp(),
     });
 
-    // Write phone index
+    // Indexes for login lookup
     await TP.db.collection('phoneIndex').doc(R.phone).set({
-      shopId: R.shopId,
-      createdAt: TP.FV.serverTimestamp(),
+      shopId: R.shopId, email: R.email, createdAt: TP.FV.serverTimestamp(),
+    });
+    await TP.db.collection('emailIndex').doc(R.email).set({
+      shopId: R.shopId, createdAt: TP.FV.serverTimestamp(),
     });
 
     // Success!
+    document.getElementById('successEmail').textContent = R.email;
     document.getElementById('successShopId').textContent = R.shopId;
     document.getElementById('successPhone').textContent = TP.bn(R.phone);
     document.getElementById('successModal').classList.remove('hidden');
@@ -261,8 +293,9 @@ document.getElementById('btnFinish').addEventListener('click', async () => {
   } catch (err) {
     console.error(err);
     let msg = err.message || 'রেজিস্ট্রেশন ব্যর্থ';
-    if (err.code === 'auth/email-already-in-use') msg = 'শপ আইডি ব্যবহৃত — আবার চেষ্টা করুন';
-    if (err.code === 'auth/weak-password')       msg = 'পাসওয়ার্ড দুর্বল';
+    if (err.code === 'auth/email-already-in-use') msg = 'এই ইমেইল ইতিমধ্যে ব্যবহৃত';
+    if (err.code === 'auth/invalid-email')        msg = 'ইমেইল ভুল ফরম্যাটে';
+    if (err.code === 'auth/weak-password')        msg = 'পাসওয়ার্ড দুর্বল (কমপক্ষে ৬ অক্ষর)';
     if (err.code === 'auth/network-request-failed') msg = 'ইন্টারনেট নেই';
     TP.toast(msg, 'error');
     btn.disabled = false;
@@ -270,7 +303,7 @@ document.getElementById('btnFinish').addEventListener('click', async () => {
   }
 });
 
-/* Go to login */
+/* GO TO LOGIN */
 document.getElementById('btnGoLogin').addEventListener('click', () => {
   location.href = 'login.html';
 });
@@ -278,7 +311,6 @@ document.getElementById('btnGoLogin').addEventListener('click', () => {
 /* If already logged in → redirect */
 TP.auth.onAuthStateChanged(async user => {
   if (!user) return;
-  // Skip if we are in registration flow (success modal visible)
   if (!document.getElementById('successModal').classList.contains('hidden')) return;
   try {
     const doc = await TP.db.collection('users').doc(user.uid).get();
